@@ -6,7 +6,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$HOME/.kolmafia/kolmaf-ai}"
 ACTOR_REPO="${ACTOR_REPO:-$PROJECT_ROOT/actor-engine}"
 SETUP_DIR="${SETUP_DIR:-$PROJECT_ROOT/actor-engine-local-setup}"
 REQUIRED_BASE_COMMIT="${REQUIRED_BASE_COMMIT:-a6b1ee03be11fe716b2a30059e15701865a12d88}"
-EXPECTED_VERSION="${EXPECTED_VERSION:-0.3.0-dev}"
+EXPECTED_VERSION="${EXPECTED_VERSION:-0.3.0}"
 
 RED=$'\e[31m'; GREEN=$'\e[32m'; YELLOW=$'\e[33m'; CYAN=$'\e[36m'; RESET=$'\e[0m'
 say(){ printf '%s\n' "$*"; }

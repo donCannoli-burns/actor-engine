@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.3.0-dev
+# Actor Engine — KoL actor runtime prototype v0.3.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -72,7 +72,7 @@ Authority-bearing paths also fail closed if required audit evidence cannot be du
 Live harness: [`tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`](tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh). Observed terminal result: `PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST`.
 
 
-## v0.3 development — runtime / observation identity
+## Verified v0.3.0 checkpoint — runtime / observation identity
 
 The next bounded layer adds identity to evidence without adding authority:
 
@@ -85,10 +85,12 @@ A fresh Actor Engine start receives a new cryptographically random `runtime_id`.
 
 These IDs are **not credentials, capabilities, or permission tokens**. They are provenance primitives. Proposals, receipts, and audit events carry the runtime/observation identity that produced them so humans and agents can distinguish “same observed facts” from “same process lifetime.”
 
-This feature remains `v0.3.0-dev` until its live harness passes on the real runtime.
+The live identity harness passed on the real runtime on 2026-09-29: `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`.
 
 Design: [`docs/IDENTITY.md`](docs/IDENTITY.md)  
 Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test.sh`](tests/live/v0.3-identity/runtime-observation-identity-test.sh)
+
+Observed live result: `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`. The harness confirmed runtime turnover, deterministic observation identity across repeated and cross-restart observations, proposal/audit provenance binding, and non-restoration of the pre-restart proposal. It did not confirm or successfully execute `release.stage`.
 
 ## What this prototype does
 
@@ -105,7 +107,7 @@ Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test
 
 ## Authority boundary
 
-### Live-validated through v0.2.0
+### Live-validated through v0.3.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -125,7 +127,7 @@ Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed in v0.2.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed through v0.3.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 

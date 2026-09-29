@@ -246,3 +246,52 @@ execution.denied appended as new evidence
 The test deliberately did **not** execute the confirmed `release.stage` proposal. It therefore tested the persistence/authority boundary without performing a new local staging write.
 
 The acceptance harness is preserved at `tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`.
+
+## v0.3.0 live acceptance — runtime / observation identity
+
+**Status:** `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`  
+**Date:** 2026-09-29  
+**Feature implementation commit:** `e32b0118871c695a9f95e1a9efe8b32411af60cc`  
+**Exact tested repository HEAD:** `bd473f58babf1bc68c3407c45d506243f2621086`  
+**Authority expansion:** none
+
+The interactive acceptance harness passed against the real local Actor Engine / KoLmafia runtime.
+
+It independently verified the bounded observation hash instead of trusting the server's `observation_id`, repeated the same manual observation, changed only the observation event with `kol_actor turn`, returned to `kol_actor sync`, created an **unconfirmed and unexecuted** release-stage proposal for provenance inspection, restarted only Actor Engine, and re-observed the same bounded KoL facts.
+
+Observed runtime identities:
+
+```text
+before restart: run-871adb21a6724de6de3820420149c433
+after restart:  run-eae31582ec1d3a4e12299d9dbabaaa79
+```
+
+Stable manual observation identity:
+
+```text
+obs-173a105577d0e666bc6eeccdb07faf5d234d5d8b1f4055f88ed266d0f8d8e873
+```
+
+The same bounded manual observation retained that identity across different Actor Engine runtimes. The event-only `after-adventure` observation changed the identity, and returning to identical manual facts returned to the original identity.
+
+Proposal provenance evidence:
+
+```text
+proposal      = p-a5aacc864ee2db95e53e3931
+state_digest  = c02fec452a09177ea564029725d1d45ce68d1b57ae8c44b5f0d98bc94a77326c
+target        = KoLmafia-29315.jar / r29315
+asset_sha256  = d0b7fb3bf75768ad9918578ba979f627e4938c78cbdd1a05b0b9b180d0f65209
+installed     = 29301
+```
+
+The proposal was never confirmed and never successfully executed. After the sidecar restart, its old ID returned `409 proposal not found`. Audit evidence preserved the proposal's originating runtime/observation identity and distinguished the subsequent denial as belonging to the new runtime.
+
+Observed terminal result:
+
+```text
+PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST
+Runtime identity changed across restart.
+Observation identity matched bounded KoL observations deterministically.
+Proposal evidence retained its originating runtime/observation identity.
+No release.stage proposal was confirmed or executed by this test.
+```

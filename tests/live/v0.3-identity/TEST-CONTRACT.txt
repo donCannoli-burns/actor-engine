@@ -1,9 +1,17 @@
 LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST
-status: acceptance pending
-development_version: 0.3.0-dev
+status: PASS
+checkpoint: v0.3.0
+date: 2026-09-29
+feature_implementation_commit: e32b0118871c695a9f95e1a9efe8b32411af60cc
+tested_repository_head: bd473f58babf1bc68c3407c45d506243f2621086
 verified_base_commit: a6b1ee03be11fe716b2a30059e15701865a12d88
-runtime_id: run- + 32 lowercase hex; new per Actor Engine process
-observation_id: obs- + sha256(sorted length-prefixed bounded KoL observation)
+runtime_before: run-871adb21a6724de6de3820420149c433
+runtime_after: run-eae31582ec1d3a4e12299d9dbabaaa79
+stable_manual_observation: obs-173a105577d0e666bc6eeccdb07faf5d234d5d8b1f4055f88ed266d0f8d8e873
+proposal_id: p-a5aacc864ee2db95e53e3931
+proposal_state_digest: c02fec452a09177ea564029725d1d45ce68d1b57ae8c44b5f0d98bc94a77326c
+proposal_target: KoLmafia-29315.jar r29315
 must_prove: deterministic observation identity; runtime change across restart; proposal/audit provenance binding; old proposal authority absent
 must_not: confirm release.stage; successfully execute release.stage; install release; restart KoLmafia; automate arbitrary gCLI; mutate live KoL state
 human_boundaries: kol_actor sync; kol_actor turn observation event; Actor Engine restart
+result: PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST

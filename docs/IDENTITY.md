@@ -1,6 +1,6 @@
 # Runtime and observation identity
 
-Status: **v0.3.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.3.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.2.0** at `a6b1ee03be11fe716b2a30059e15701865a12d88`  
 Authority change: **none**
 
@@ -83,9 +83,9 @@ audit history != restored authority
 
 The feature adds no release installation, KoLmafia restart, arbitrary ASH/gCLI, game mutation, social automation, or automatic confirmation authority.
 
-## Acceptance target
+## Acceptance result
 
-The interactive live harness must prove:
+The interactive live harness proved on 2026-09-29:
 
 1. `runtime_id` is well formed and stable within one process;
 2. `observation_id` independently recomputes from the returned bounded KoL state;
@@ -99,3 +99,46 @@ The interactive live harness must prove:
 10. no release-stage proposal is confirmed or executed by the harness.
 
 Harness: `tests/live/v0.3-identity/runtime-observation-identity-test.sh`.
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`  
+**Feature implementation commit:** `e32b0118871c695a9f95e1a9efe8b32411af60cc`  
+**Exact tested repository HEAD:** `bd473f58babf1bc68c3407c45d506243f2621086`  
+**Authority expansion:** none
+
+Observed identities:
+
+```text
+runtime before restart:
+run-871adb21a6724de6de3820420149c433
+
+runtime after restart:
+run-eae31582ec1d3a4e12299d9dbabaaa79
+
+stable manual observation:
+obs-173a105577d0e666bc6eeccdb07faf5d234d5d8b1f4055f88ed266d0f8d8e873
+```
+
+The same bounded manual KoL facts produced the same `observation_id` before and after the Actor Engine restart, while the `runtime_id` changed. A temporary `event=after-adventure` observation produced a different identity, and returning to `event=manual` restored the original content identity.
+
+The unconfirmed proposal used for provenance verification was:
+
+```text
+proposal_id   = p-a5aacc864ee2db95e53e3931
+runtime_id    = run-871adb21a6724de6de3820420149c433
+observation_id= obs-173a105577d0e666bc6eeccdb07faf5d234d5d8b1f4055f88ed266d0f8d8e873
+state_digest  = c02fec452a09177ea564029725d1d45ce68d1b57ae8c44b5f0d98bc94a77326c
+target        = KoLmafia-29315.jar / r29315
+```
+
+The harness did not confirm or successfully execute that proposal. After restart, executing its old ID returned:
+
+```text
+HTTP 409
+proposal not found
+```
+
+Audit history retained the originating runtime/observation identity and recorded the post-restart denial under the new runtime.
+
+This closes the v0.3 identity acceptance target.

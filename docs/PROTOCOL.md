@@ -19,9 +19,9 @@ Core endpoints:
 
 The only implemented execution operation through the verified v0.2 baseline is `release.stage`.
 
-## v0.3 development identity fields
+## Verified v0.3.0 identity fields
 
-The v0.3 development branch adds two provenance fields to state/proposal/receipt/audit surfaces:
+The verified v0.3.0 checkpoint adds two provenance fields to state/proposal/receipt/audit surfaces:
 
 - `runtime_id`: `run-` + 128 random bits encoded as 32 lowercase hex characters. It is generated once per Actor Engine process start and changes across restarts.
 - `observation_id`: `obs-` + SHA-256 of the bounded KoL observation map after deterministic sorting and length-prefix encoding.

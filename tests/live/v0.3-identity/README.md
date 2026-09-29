@@ -1,6 +1,6 @@
 # v0.3 runtime / observation identity live acceptance
 
-This directory contains the interactive acceptance harness for the v0.3 identity development layer.
+This directory contains the interactive acceptance harness used to live-verify the v0.3.0 runtime / observation identity checkpoint.
 
 The harness follows the same human-boundary convention as the verified v0.2 ledger test:
 
@@ -16,7 +16,7 @@ Run:
 ./runtime-observation-identity-test.sh
 ```
 
-Expected terminal success:
+Observed terminal success on 2026-09-29:
 
 ```text
 PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST
@@ -26,4 +26,4 @@ Proposal evidence retained its originating runtime/observation identity.
 No release.stage proposal was confirmed or executed by this test.
 ```
 
-Do not promote the feature from `0.3.0-dev` to a verified checkpoint until this live result is obtained.
+The result was obtained against exact repository HEAD `bd473f58babf1bc68c3407c45d506243f2621086`; v0.3.0 is therefore a verified checkpoint.
