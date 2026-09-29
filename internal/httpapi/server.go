@@ -350,10 +350,10 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:            audit.EventProposalConfirmed,
-		ProposalID:      p.ID,
-		Operation:       p.Operation,
-		StateDigest:     p.StateDigest,
+		Type:               audit.EventProposalConfirmed,
+		ProposalID:         p.ID,
+		Operation:          p.Operation,
+		StateDigest:        p.StateDigest,
 		AdmissionDigest:    p.Admission.Digest,
 		ConfirmationDigest: confirmationEvidence.Digest,
 		Confirmation:       &confirmationEvidence,
@@ -398,7 +398,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			AdmissionDigest:    p.Admission.Digest,
 			ConfirmationDigest: confirmationEvidence.Digest,
 			Result:             "denied",
-			Detail:      err.Error(),
+			Detail:             err.Error(),
 		})); auditErr != nil {
 			s.setFault(fmt.Errorf("audit execution denial: %w", auditErr))
 			http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
@@ -454,10 +454,10 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:            audit.EventExecutionStarted,
-		ProposalID:      p.ID,
-		Operation:       p.Operation,
-		StateDigest:     p.StateDigest,
+		Type:               audit.EventExecutionStarted,
+		ProposalID:         p.ID,
+		Operation:          p.Operation,
+		StateDigest:        p.StateDigest,
 		AdmissionDigest:    p.Admission.Digest,
 		ConfirmationDigest: confirmationEvidence.Digest,
 		Result:             "started",

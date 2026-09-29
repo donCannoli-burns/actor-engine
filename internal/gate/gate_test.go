@@ -48,7 +48,6 @@ func errorsIsProposalNotFound(err error) bool {
 	return err == ErrProposalNotFound
 }
 
-
 func TestGateConfirmationEvidenceIsBoundAndEphemeral(t *testing.T) {
 	t.Parallel()
 	g := New()

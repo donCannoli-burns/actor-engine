@@ -424,7 +424,6 @@ func TestProposalAdmissionRejectsNotReadyPreflight(t *testing.T) {
 	}
 }
 
-
 func TestDurableConfirmationEvidenceDoesNotRestoreAuthority(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "audit.jsonl")

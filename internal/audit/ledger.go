@@ -31,24 +31,24 @@ const (
 )
 
 type Event struct {
-	Seq             uint64    `json:"seq"`
-	At              time.Time `json:"at"`
-	Type            string    `json:"type"`
-	ProposalID      string    `json:"proposal_id,omitempty"`
-	RuntimeID       string    `json:"runtime_id,omitempty"`
-	ObservationID   string    `json:"observation_id,omitempty"`
+	Seq                uint64                 `json:"seq"`
+	At                 time.Time              `json:"at"`
+	Type               string                 `json:"type"`
+	ProposalID         string                 `json:"proposal_id,omitempty"`
+	RuntimeID          string                 `json:"runtime_id,omitempty"`
+	ObservationID      string                 `json:"observation_id,omitempty"`
 	AdmissionDigest    string                 `json:"admission_digest,omitempty"`
 	ConfirmationDigest string                 `json:"confirmation_digest,omitempty"`
 	Confirmation       *confirmation.Evidence `json:"confirmation,omitempty"`
-	Operation          string    `json:"operation,omitempty"`
-	StateDigest     string    `json:"state_digest,omitempty"`
-	Actor           string    `json:"actor,omitempty"`
-	Result          string    `json:"result,omitempty"`
-	Detail          string    `json:"detail,omitempty"`
-	ArtifactPath    string    `json:"artifact_path,omitempty"`
-	SHA256          string    `json:"sha256,omitempty"`
-	PrevHash        string    `json:"prev_hash,omitempty"`
-	Hash            string    `json:"hash,omitempty"`
+	Operation          string                 `json:"operation,omitempty"`
+	StateDigest        string                 `json:"state_digest,omitempty"`
+	Actor              string                 `json:"actor,omitempty"`
+	Result             string                 `json:"result,omitempty"`
+	Detail             string                 `json:"detail,omitempty"`
+	ArtifactPath       string                 `json:"artifact_path,omitempty"`
+	SHA256             string                 `json:"sha256,omitempty"`
+	PrevHash           string                 `json:"prev_hash,omitempty"`
+	Hash               string                 `json:"hash,omitempty"`
 }
 
 type Status struct {
