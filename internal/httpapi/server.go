@@ -522,7 +522,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		if chooseErr != nil {
 			receipt = failedReceipt(p, chooseErr)
 			receipt.ConfirmationDigest = confirmationEvidence.Digest
-		receipt.ExecutionDigest = executionEvidence.Digest
+			receipt.ExecutionDigest = executionEvidence.Digest
 			break
 		}
 		path, sum, stageErr := s.releases.Stage(r.Context(), asset, s.stageDir)
@@ -536,7 +536,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	default:
 		receipt = failedReceipt(p, fmt.Errorf("operation %q is not implemented", p.Operation))
 		receipt.ConfirmationDigest = confirmationEvidence.Digest
-			receipt.ExecutionDigest = executionEvidence.Digest
+		receipt.ExecutionDigest = executionEvidence.Digest
 	}
 
 	terminalType := audit.EventExecutionFailed
