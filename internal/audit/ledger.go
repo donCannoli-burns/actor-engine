@@ -196,6 +196,14 @@ func (l *Ledger) Recent(limit int) []Event {
 	return out
 }
 
+func (l *Ledger) Events() []Event {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := make([]Event, len(l.events))
+	copy(out, l.events)
+	return out
+}
+
 func (l *Ledger) Status() Status {
 	l.mu.Lock()
 	defer l.mu.Unlock()
