@@ -138,8 +138,7 @@ func (l *Ledger) Append(event Event) (Event, error) {
 	if err != nil {
 		return Event{}, fmt.Errorf("encoding audit event: %w", err)
 	}
-	line = append(line, '
-')
+	line = append(line, '\n')
 
 	f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
