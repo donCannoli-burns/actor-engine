@@ -17,3 +17,8 @@ The v0.2 audit ledger adds durability to evidence, not durability to permission.
 12. **Preflight is side-effect free.** Reading `/v1/preflight` must not refresh remote state, append audit evidence, create/drop proposals, or alter the actor state plane.
 
 The v0.4 preflight layer adds readiness visibility, not execution authority.
+13. **Admission is not confirmation.** A valid preflight admission digest proves only which READY evidence/checkset allowed proposal formation; it is never accepted as human confirmation or execution authority.
+14. **NOT_READY cannot form a proposal.** Proposal admission must fail before gate insertion, pending-proposal state, or `proposal.created` audit evidence when the current preflight is not READY.
+15. **Admission evidence is tamper-evident.** The embedded exact preflight report is canonically hashed and re-verified before execution after the ordinary confirmation/state gates have passed.
+
+The v0.5 admission layer adds provenance to proposal formation, not authority.

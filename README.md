@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.4.0
+# Actor Engine — KoL actor runtime prototype v0.5.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -122,6 +122,45 @@ Design: [`docs/PREFLIGHT.md`](docs/PREFLIGHT.md)
 Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](tests/live/v0.4-preflight/read-only-preflight-test.sh)
 
 Observed live result: `PASS LIVE_READ_ONLY_PREFLIGHT_TEST`. The harness proved NOT_READY → READY → NOT_READY → READY across evidence and proposal-gate changes, repeated preflight reads appended no audit evidence, the test proposal was never confirmed or successfully executed, and READY never granted execution authority.
+
+## v0.5 development — proposal admission / preflight binding
+
+The next bounded layer turns verified v0.4 readiness into **proposal admission evidence**, without turning readiness into authority.
+
+A `release.stage` proposal can now be created only when the current read-only preflight is `READY`. Every admitted proposal carries:
+
+```text
+admission.version = kol-actor/admission-v1
+admission.digest  = SHA-256(canonical exact preflight report)
+admission.preflight
+    ├── runtime_id
+    ├── observation_id
+    ├── generated_at
+    ├── exact checkset
+    ├── reasons
+    └── explicit authority boundary
+```
+
+The admission digest is propagated into audit lifecycle evidence and receipts. It is independently verifiable and immutable evidence of **why proposal formation was allowed**.
+
+It is deliberately not a confirmation token:
+
+```text
+READY preflight
+    ↓
+admission evidence
+    ↓
+proposal
+
+proposal + admission
+    ≠ human confirmation
+    ≠ execution authority
+```
+
+A NOT_READY preflight returns HTTP 409 with `error: preflight_not_ready` and the exact failed preflight report; no proposal is created.
+
+Design: [`docs/ADMISSION.md`](docs/ADMISSION.md)  
+Acceptance harness: [`tests/live/v0.5-admission/proposal-admission-binding-test.sh`](tests/live/v0.5-admission/proposal-admission-binding-test.sh)
 
 ## What this prototype does
 

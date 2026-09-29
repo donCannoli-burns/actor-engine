@@ -48,3 +48,28 @@ Freshness windows in the first contract are:
 - Kingdomsitter status: 2 minutes.
 
 See [`PREFLIGHT.md`](PREFLIGHT.md).
+
+## v0.5 development proposal admission
+
+`POST /v1/proposals/release-stage` now requires a current `READY` result from the verified preflight contract.
+
+A successful proposal includes `admission`:
+
+- `version: kol-actor/admission-v1`;
+- `digest: sha256:<hex>`;
+- the complete exact preflight report used for admission.
+
+The digest is SHA-256 over a canonical JSON representation of the embedded preflight report. It is also copied into proposal lifecycle audit records and receipts.
+
+If preflight is NOT_READY, proposal formation returns HTTP 409 with:
+
+```json
+{
+  "error": "preflight_not_ready",
+  "preflight": { "...": "exact current preflight report" }
+}
+```
+
+Admission is evidence of proposal eligibility only. The existing state-digest confirmation and execution gates remain separate.
+
+See [`ADMISSION.md`](ADMISSION.md).

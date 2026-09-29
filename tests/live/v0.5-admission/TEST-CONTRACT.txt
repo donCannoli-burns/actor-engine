@@ -1,0 +1,10 @@
+LIVE_PROPOSAL_ADMISSION_BINDING_TEST
+status: acceptance pending
+development_version: 0.5.0-dev
+verified_base_commit: 4aa5cb1cd72d9c8356b242ce4b7b8b5c68eddd25
+admission_version: kol-actor/admission-v1
+digest: sha256(canonical JSON exact embedded preflight report)
+must_prove: NOT_READY proposal denial; READY-only admission; exact embedded checkset; independently recomputable digest; audit propagation; admission != confirmation; restart does not restore proposal authority
+must_not: call confirmation endpoint; successfully execute release.stage; install release; restart KoLmafia; automate arbitrary gCLI; mutate live KoL state
+optional_human_gate: negative unconfirmed execute probe
+human_boundaries: kol_actor sync; optional unconfirmed execute probe; Actor Engine restart
