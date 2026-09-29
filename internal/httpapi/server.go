@@ -24,6 +24,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
+	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
@@ -73,6 +74,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/state", s.state)
 	mux.HandleFunc("GET /v1/preflight", s.preflight)
+	mux.HandleFunc("GET /v1/recovery", s.recovery)
 	mux.HandleFunc("GET /v1/audit/recent", s.recentAudit)
 	mux.HandleFunc("GET /v1/release/latest", s.latestRelease)
 	mux.HandleFunc("POST /v1/release/refresh", s.refreshRelease)
@@ -88,12 +90,13 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.8.0",
+		"version":                    "0.9.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
 		"evidence_persistence":       "hash-chained-jsonl",
 		"authority_restored_on_boot": false,
+		"automatic_execution_replay": false,
 	})
 }
 
@@ -114,9 +117,18 @@ func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.preflightResult())
 }
 
+func (s *Server) recovery(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.recoveryReport())
+}
+
+func (s *Server) recoveryReport() recovery.Report {
+	return recovery.Build(s.audit.Events(), s.runtimeID, s.currentTime())
+}
+
 func (s *Server) preflightResult() preflight.Result {
 	auditVerified := s.audit.Status().Verified
 	activeStates := s.plane.Snapshot()
+	recoveryReport := s.recoveryReport()
 	s.mu.RLock()
 	pendingID := ""
 	if s.pending != nil {
@@ -135,6 +147,7 @@ func (s *Server) preflightResult() preflight.Result {
 		AuditVerified:          auditVerified,
 		Fault:                  s.snapshot.Fault,
 		PendingProposalID:      pendingID,
+		UnresolvedExecutions:   len(recoveryReport.Unresolved),
 		ActiveStates:           activeStates,
 	}
 	s.mu.RUnlock()
