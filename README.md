@@ -108,6 +108,10 @@ They are transport clients, not authority domains. All policy and execution deci
 
 ## Integration with Kolmaf-AI Desktop
 
+Desktop project page: https://doncannoli-burns.github.io/kolmaf-ai-desktop/  
+Actor Engine page inside the Desktop site: https://doncannoli-burns.github.io/kolmaf-ai-desktop/actor-engine.html  
+Desktop repository: https://github.com/donCannoli-burns/kolmaf-ai-desktop
+
 See `integration/kolmaf-ai-desktop-tools.fragment.json`. It mirrors the desktop tool-manifest style but keeps this prototype's authority at `proposal-and-confirmed-local-staging-only`.
 
 ## Reference mapping
