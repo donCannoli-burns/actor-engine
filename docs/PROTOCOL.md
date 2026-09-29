@@ -104,3 +104,26 @@ The evidence digest covers proposal/operation identity, proposal-state digest, a
 For an authorized consume, the full object is stored on `execution.started` and its digest propagates to terminal audit evidence and the receipt. For a stale-state consume denial, the full object is stored on the denial/invalidation audit event with `gate_decision: denied`.
 
 The evidence itself grants no authority.
+
+
+## v0.8 development terminal reconciliation provenance
+
+A terminal execution result can carry `kol-actor/reconciliation-v1` evidence. The canonical digest binds the complete provenance chain through the operation outcome:
+
+```text
+admission_digest
+confirmation_digest
+execution_digest
+    ↓
+runtime + observation identity
+    ↓
+success / failure + terminal detail
+    ↓
+artifact path + SHA-256 + committed flag
+    ↓
+completed_at
+```
+
+The full reconciliation object is returned in the receipt and stored on the terminal `execution.succeeded` or `execution.failed` audit event. Its digest is also exposed separately as `reconciliation_digest`.
+
+Reconciliation evidence is historical evidence only. It cannot authorize, replay, or restore an operation.
