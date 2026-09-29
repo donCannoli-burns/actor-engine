@@ -1,0 +1,29 @@
+{
+  "id": "kol-actor-engine",
+  "repository": "donCannoli-burns/actor-engine",
+  "branch": "main",
+  "role": [
+    "actor-control-plane",
+    "release-monitor",
+    "state-machine",
+    "kingdomsitter-observer"
+  ],
+  "authority": "proposal-and-confirmed-local-staging-only",
+  "optional_service": {
+    "name": "kol-actor-engine",
+    "bind": "127.0.0.1",
+    "port": 10424
+  },
+  "installed_surfaces": [
+    "~/.kolmafia/scripts/kol_actor.ash",
+    "~/.kolmafia/data/actor-engine/runtime.json",
+    "http://127.0.0.1:10424/v1/state",
+    "http://127.0.0.1:10424/v1/release/latest"
+  ],
+  "invariants": [
+    "KoLmafia remains authoritative for live game state and live mutations.",
+    "Kingdomsitter remains execution_authority=false.",
+    "No arbitrary ASH or gCLI execution path exists in this prototype.",
+    "release.stage requires exact state-digest confirmation and does not install or restart KoLmafia."
+  ]
+}

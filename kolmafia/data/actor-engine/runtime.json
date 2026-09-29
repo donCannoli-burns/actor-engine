@@ -1,0 +1,22 @@
+{
+  "name": "actor-engine",
+  "schema": "actor-engine.runtime/v1",
+  "repository": "https://github.com/donCannoli-burns/actor-engine",
+  "sidecar": {
+    "language": "go",
+    "binary": "kol-actor-engine",
+    "default_listen": "127.0.0.1:10424",
+    "execution_authority": "gated-local-operations-only",
+    "live_kolmafia_mutation": false
+  },
+  "kolmafia": {
+    "script": "kol_actor.ash",
+    "execution_authority": false,
+    "checkout": "git checkout https://github.com/donCannoli-burns/actor-engine.git main",
+    "update": "git update actor-engine"
+  },
+  "kingdomsitter": {
+    "default_url": "http://127.0.0.1:10423",
+    "relationship": "read-only monitored companion sidecar"
+  }
+}

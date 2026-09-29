@@ -1,0 +1,13 @@
+{
+  "schema": "kol-actor-operations/v1",
+  "operations": [
+    {"name": "runtime.status", "class": "observe", "confirmation": false},
+    {"name": "release.check", "class": "observe", "confirmation": false},
+    {"name": "kingdomsitter.state", "class": "observe", "confirmation": false},
+    {"name": "kolmafia.state", "class": "observe", "confirmation": false},
+    {"name": "release.stage", "class": "local-write-reversible", "confirmation": true},
+    {"name": "release.install", "class": "local-install", "confirmation": true, "implemented": false},
+    {"name": "gcli.execute", "class": "live-mutation", "confirmation": true, "implemented": false},
+    {"name": "ash.execute-arbitrary", "class": "live-mutation", "confirmation": true, "implemented": false}
+  ]
+}

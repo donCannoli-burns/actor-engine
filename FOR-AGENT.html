@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KoL Actor Engine — Agent Hyper Index</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0f13;--p:#111820;--p2:#151f29;--ink:#e7eef5;--muted:#91a0ae;--line:#2a3947;--green:#43d17d;--blue:#6aa9ff;--amber:#e9b949;--violet:#bd8cff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-monospace,monospace}a{color:var(--blue)}main{max-width:1200px;margin:auto;padding:18px}.panel{border:1px solid var(--line);background:var(--p);border-radius:10px;margin:0 0 12px;overflow:hidden}.head{padding:10px 12px;background:#0f161d;border-bottom:1px solid var(--line)}.body{padding:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.card{border:1px solid var(--line);background:var(--p2);border-radius:8px;padding:10px}.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 6px;margin:2px;font-size:11px}.good{color:var(--green)}.warn{color:var(--amber)}pre{white-space:pre-wrap;background:#0a1015;border:1px solid var(--line);padding:10px;border-radius:7px}
+</style></head><body><main>
+<section class="panel"><div class="head"><b>KoL Actor Engine · v0.1.0</b></div><div class="body"><p>Go + ASH actor-driven state plane for Kolmaf-AI Desktop and KoLmafia. Multi-language clients share one protocol; they do not share execution authority.</p><span class="badge good">Go supervisor</span><span class="badge">ASH observer</span><span class="badge">Rust</span><span class="badge">Kotlin</span><span class="badge">C#</span><span class="badge">C++</span><span class="badge">C</span><span class="badge">Swift</span></div></section>
+<section class="panel"><div class="head"><b>Authority map</b></div><div class="body"><pre>human -> desktop/agents -> proposal -> exact state digest -> confirmation
+                                              |
+                                              v
+Go actor supervisor -> release staging only (v0.1.0)
+        ^
+        | observations
+ASH / Kingdomsitter
+        |
+        v
+KoLmafia = live runtime truth + future governed mutation endpoint</pre></div></section>
+<section class="panel"><div class="head"><b>Active-state model</b></div><div class="body grid"><div class="card"><b>Concurrent facts</b><p>ready, observe_only, kol_state_seen, kingdomsitter_seen may all be active together.</p></div><div class="card"><b>Release group</b><p>release_current XOR release_available.</p></div><div class="card"><b>Proposal group</b><p>awaiting_confirmation -> proposal_ready -> executing -> reconciling -> release_staged.</p></div></div></section>
+<section class="panel"><div class="head"><b>Agent contract</b></div><div class="body"><ol><li>Read <code>/v1/state</code> before proposing.</li><li>Treat observations and release metadata as evidence, not permission.</li><li>Do not fabricate a state digest; use the proposal's digest.</li><li>Only a human confirmation binds permission.</li><li>Do not infer that a staged release is installed.</li><li>Re-read state/receipt after execution.</li><li>Never call an unimplemented operation as a fallback.</li></ol></div></section>
+<section class="panel"><div class="head"><b>KoLmafia checkout / sidecar install</b></div><div class="body"><pre>KoLmafia gCLI:
+git checkout https://github.com/donCannoli-burns/actor-engine.git main
+
+Shell:
+go install github.com/donCannoli-burns/actor-engine/cmd/kol-actor-engine@latest
+kol-actor-engine
+
+KoLmafia gCLI:
+kol_actor status
+kol_actor sync</pre><p>The root <code>manifest.json</code> exposes only <code>kolmafia/</code>. The Go development tree is not copied into KoLmafia runtime directories.</p></div></section>
+<section class="panel"><div class="head"><b>Files</b></div><div class="body grid"><div class="card"><a href="README.md">README.md</a></div><div class="card"><a href="docs/ARCHITECTURE.md">Architecture</a></div><div class="card"><a href="docs/SAFETY.md">Safety</a></div><div class="card"><a href="docs/KOLMAFIA-CHECKOUT.md">KoLmafia checkout</a></div><div class="card"><a href="LICENSE">MIT License</a></div><div class="card"><a href="docs/PROTOCOL.md">Protocol</a></div><div class="card"><a href="protocol/kol-actor-v1.schema.json">JSON schema</a></div><div class="card"><a href="integration/kolmaf-ai-desktop-tools.fragment.json">Desktop integration fragment</a></div></div></section>
+<section class="panel"><div class="head"><b>Reference links</b></div><div class="body"><p><a href="https://github.com/donCannoli-burns/actor-engine">actor-engine repo</a> · <a href="https://github.com/donCannoli-burns/kingdomsitter">Kingdomsitter</a> · <a href="https://doncannoli-burns.github.io/kolmaf-ai-desktop/">Kolmaf-AI Desktop</a> · <a href="https://github.com/kolmafia/kolmafia/releases">KoLmafia releases</a> · <a href="https://github.com/pancsta/asyncmachine-go">asyncmachine-go</a></p></div></section>
+</main></body></html>

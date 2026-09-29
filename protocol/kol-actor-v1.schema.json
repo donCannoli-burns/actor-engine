@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doncannoli-burns.github.io/kolmaf-ai-desktop/schemas/kol-actor-v1.schema.json",
+  "title": "KoL Actor Envelope v1",
+  "type": "object",
+  "required": ["version", "id", "kind", "actor", "target", "operation", "created_at"],
+  "properties": {
+    "version": {"const": "kol-actor/v1"},
+    "id": {"type": "string", "minLength": 1},
+    "kind": {"enum": ["observe", "propose", "confirm", "execute", "receipt"]},
+    "actor": {"type": "string"},
+    "target": {"type": "string"},
+    "operation": {"type": "string"},
+    "state_digest": {"type": "string"},
+    "payload": {"type": "object"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

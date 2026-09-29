@@ -1,0 +1,24 @@
+Actor Engine v0.1.0 checkout-prep smoke — 2026-09-29
+
+PASS gofmt cmd internal
+PASS go test ./...
+PASS go test -race ./...
+PASS go vet ./...
+PASS go build ./cmd/kol-actor-engine
+PASS gcc -Wall -Wextra -Werror clients/c/client.c
+PASS g++ -std=c++20 -Wall -Wextra -Werror clients/cpp/main.cpp
+PASS kotlinc clients/kotlin/Main.kt
+PASS swiftc clients/swift/main.swift
+SKIP rustc unavailable in build environment; Rust source present
+SKIP dotnet unavailable in build environment; C# source present
+PASS ASH static guard: no cli_execute and no mutating visit_url form
+PASS manifest.json parse and root_directory == kolmafia
+PASS kolmafia/data/actor-engine/runtime.json parse
+PASS go install ./cmd/kol-actor-engine into isolated GOBIN
+PASS local runtime /health
+PASS ASH-shaped /v1/kolmafia/update observation ingest
+PASS /v1/state reports ready + observe_only + kol_state_seen
+
+Module: github.com/donCannoli-burns/actor-engine
+KoLmafia checkout: git checkout https://github.com/donCannoli-burns/actor-engine.git main
+License: MIT
