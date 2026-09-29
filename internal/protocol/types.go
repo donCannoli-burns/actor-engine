@@ -73,6 +73,7 @@ type Receipt struct {
 	ObservationID      string    `json:"observation_id,omitempty"`
 	AdmissionDigest    string    `json:"admission_digest,omitempty"`
 	ConfirmationDigest string    `json:"confirmation_digest,omitempty"`
+	ExecutionDigest    string    `json:"execution_digest,omitempty"`
 	Operation          string    `json:"operation"`
 	Success            bool      `json:"success"`
 	Detail             string    `json:"detail"`

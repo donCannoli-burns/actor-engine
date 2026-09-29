@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.6.0
+# Actor Engine — KoL actor runtime prototype v0.7.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -208,6 +208,54 @@ Design: [`docs/CONFIRMATION.md`](docs/CONFIRMATION.md)
 Acceptance harness: [`tests/live/v0.6-confirmation/confirmation-provenance-binding-test.sh`](tests/live/v0.6-confirmation/confirmation-provenance-binding-test.sh)
 
 Observed live result: `PASS LIVE_CONFIRMATION_PROVENANCE_BINDING_TEST`. Human confirmation produced independently verifiable first-class evidence; the evidence bound proposal, state, admission, human, runtime, and timestamp; the confirmed proposal was never executed while approval was live; and durable confirmation evidence survived Actor Engine restart without restoring permission.
+
+## v0.7 development — execution-attempt provenance
+
+The next bounded layer records the **attempt to cross the execution boundary** as first-class evidence without adding an operation or authority.
+
+When Actor Engine has enough context to bind a confirmed proposal, an execute request can produce:
+
+```text
+execution.version = kol-actor/execution-attempt-v1
+execution.digest  = SHA-256(canonical execution-attempt payload)
+
+bound fields:
+  proposal_id
+  operation
+  proposal_state_digest
+  admission_digest
+  confirmation_digest
+  origin_runtime_id
+  execution_runtime_id
+  current_state_digest
+  attempted_at
+  gate_decision
+```
+
+The evidence explicitly carries `evidence_grants_authority: false`.
+
+A successful gate consume records the object on `execution.started`; a stale-state denial records the same shape with `gate_decision: denied` on the invalidation evidence. Terminal execution records and receipts carry the execution digest.
+
+The live acceptance path is intentionally **denial-only**:
+
+```text
+confirm proposal
+    ↓
+change only bounded observation
+    ↓
+verify observation_id changed
+    ↓
+execute stale proposal
+    ↓
+HTTP 409 approval invalidated
+    ↓
+full execution-attempt evidence
+    ↓
+no execution.started / no release.stage success
+```
+
+Design: [`docs/EXECUTION.md`](docs/EXECUTION.md)  
+Acceptance harness: [`tests/live/v0.7-execution/execution-attempt-provenance-test.sh`](tests/live/v0.7-execution/execution-attempt-provenance-test.sh)
 
 ## What this prototype does
 

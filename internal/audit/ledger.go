@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
+	"github.com/donCannoli-burns/actor-engine/internal/execution"
 )
 
 const MaxRecent = 100
@@ -40,6 +41,8 @@ type Event struct {
 	AdmissionDigest    string                 `json:"admission_digest,omitempty"`
 	ConfirmationDigest string                 `json:"confirmation_digest,omitempty"`
 	Confirmation       *confirmation.Evidence `json:"confirmation,omitempty"`
+	ExecutionDigest    string                 `json:"execution_digest,omitempty"`
+	Execution          *execution.Evidence    `json:"execution,omitempty"`
 	Operation          string                 `json:"operation,omitempty"`
 	StateDigest        string                 `json:"state_digest,omitempty"`
 	Actor              string                 `json:"actor,omitempty"`

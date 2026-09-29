@@ -118,3 +118,15 @@ authority_restorable: false
 ```
 
 This durable object is **not** loaded into the gate when the ledger reopens. The gate's approval map remains newly empty on every process start. Execution lifecycle records and receipts reference the confirmation by digest only, preserving provenance without introducing a second authority store.
+
+
+## v0.7 development — execution-attempt evidence
+
+Execution-boundary records can now carry:
+
+- `execution_digest`;
+- a full `kol-actor/execution-attempt-v1` object.
+
+The full object appears on the first durable record that captures the gate decision: `execution.started` after a successful consume or the relevant denial/invalidation record after a failed consume with known confirmation context. Later terminal records and receipts reference it by digest.
+
+A denied attempt is evidence that the boundary was reached and refused. It is not a receipt for an operation and does not imply that operation code ran.

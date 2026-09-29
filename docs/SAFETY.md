@@ -27,3 +27,8 @@ The v0.5 admission layer adds provenance to proposal formation, not authority.
 18. **Confirmation provenance is tamper-evident.** Its canonical digest is independently verifiable and is checked by the gate before an approval can be consumed.
 
 The v0.6 confirmation layer completes provenance through the human boundary without making permission durable.
+19. **Execution-attempt evidence is not execution permission.** It records the facts presented at the execution boundary and the gate decision; it cannot authorize a proposal.
+20. **Denied execution remains pre-operation.** A stale-state denial must be durably observable without reaching `execution.started` or the operation body.
+21. **Execution provenance is chained, not substitutive.** Admission and confirmation digests are inputs to execution-attempt evidence, but none of those evidence objects can replace the in-memory gate checks.
+
+The v0.7 execution layer adds boundary provenance, not capability.

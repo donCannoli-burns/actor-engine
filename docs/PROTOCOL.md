@@ -94,3 +94,13 @@ The digest is independently reproducible from canonical JSON of those fields exc
 The durable `proposal.confirmed` audit record stores the full evidence object plus its digest. Execution lifecycle records and receipts carry the confirmation digest. The ledger is never consulted to reconstruct the in-memory approval map.
 
 See [`CONFIRMATION.md`](CONFIRMATION.md).
+
+## v0.7 development execution-attempt provenance
+
+When an execute request has a known proposal and confirmation context, Actor Engine binds the attempt into `kol-actor/execution-attempt-v1`.
+
+The evidence digest covers proposal/operation identity, proposal-state digest, admission digest, confirmation digest, origin runtime, execution runtime, execution-time state digest, timestamp, and gate decision.
+
+For an authorized consume, the full object is stored on `execution.started` and its digest propagates to terminal audit evidence and the receipt. For a stale-state consume denial, the full object is stored on the denial/invalidation audit event with `gate_decision: denied`.
+
+The evidence itself grants no authority.
