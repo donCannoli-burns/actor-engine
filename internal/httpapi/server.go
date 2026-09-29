@@ -474,10 +474,10 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 
 	if err := admission.Verify(p.Admission); err != nil {
 		if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-			Type:            audit.EventExecutionDenied,
-			ProposalID:      p.ID,
-			Operation:       p.Operation,
-			StateDigest:     p.StateDigest,
+			Type:               audit.EventExecutionDenied,
+			ProposalID:         p.ID,
+			Operation:          p.Operation,
+			StateDigest:        p.StateDigest,
 			AdmissionDigest:    p.Admission.Digest,
 			ConfirmationDigest: confirmationEvidence.Digest,
 			ExecutionDigest:    executionEvidence.Digest,
@@ -522,7 +522,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		if chooseErr != nil {
 			receipt = failedReceipt(p, chooseErr)
 			receipt.ConfirmationDigest = confirmationEvidence.Digest
-			receipt.ExecutionDigest = executionEvidence.Digest
+		receipt.ExecutionDigest = executionEvidence.Digest
 			break
 		}
 		path, sum, stageErr := s.releases.Stage(r.Context(), asset, s.stageDir)

@@ -505,7 +505,6 @@ func TestDurableConfirmationEvidenceDoesNotRestoreAuthority(t *testing.T) {
 	}
 }
 
-
 func TestStaleStateDenialCarriesExecutionAttemptEvidence(t *testing.T) {
 	t.Parallel()
 	jar := []byte("fixture")
