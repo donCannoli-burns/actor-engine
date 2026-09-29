@@ -1,9 +1,12 @@
 LIVE_READ_ONLY_PREFLIGHT_TEST
-status: acceptance pending
-development_version: 0.4.0-dev
+status: PASS
+checkpoint: v0.4.0
+date: 2026-09-29
+tested_repository_head: 57aa6f627d9edb765d9e44304bde060418eb20f4
 verified_base_commit: 28aa4b2d8c824f173d163c3194005f77a73cba08
 endpoint: GET /v1/preflight
 freshness: kol=300s release=1800s kingdomsitter=120s
 must_prove: read-only endpoint; NOT_READY without observation; READY with fresh evidence; pending proposal closes readiness; restart clears ephemeral proposal; READY grants no authority
 must_not: confirm release.stage; successfully execute release.stage; install release; restart KoLmafia; automate arbitrary gCLI; mutate live KoL state
 human_boundaries: kol_actor sync; Actor Engine restart
+result: PASS LIVE_READ_ONLY_PREFLIGHT_TEST

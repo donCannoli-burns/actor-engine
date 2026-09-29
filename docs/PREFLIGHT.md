@@ -1,6 +1,6 @@
 # Read-only runtime preflight
 
-Status: **v0.4.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.4.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.3.0** at `28aa4b2d8c824f173d163c3194005f77a73cba08`  
 Authority change: **none**
 
@@ -104,9 +104,9 @@ Every result carries:
 }
 ```
 
-## Acceptance target
+## Acceptance result
 
-The interactive v0.4 harness must prove on the real runtime:
+The interactive v0.4 harness proved on the real runtime:
 
 1. a fresh restart with no KoL observation reports NOT_READY;
 2. explicit read-only release + Kingdomsitter refreshes do not make it READY without KoL evidence;
@@ -119,3 +119,21 @@ The interactive v0.4 harness must prove on the real runtime:
 9. after explicit refresh + human-run `kol_actor sync`, preflight returns READY again.
 
 Freshness expiry itself is unit-tested with an injected clock so the live acceptance test does not waste minutes waiting for evidence to age.
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_READ_ONLY_PREFLIGHT_TEST`  
+**Exact tested repository HEAD:** `57aa6f627d9edb765d9e44304bde060418eb20f4`  
+**Authority expansion:** none
+
+Observed terminal result:
+
+```text
+PASS LIVE_READ_ONLY_PREFLIGHT_TEST
+Preflight moved NOT_READY -> READY -> NOT_READY -> READY for the expected evidence/gate changes.
+Repeated preflight reads appended no audit evidence.
+The test proposal was never confirmed or successfully executed.
+READY never granted execution authority.
+```
+
+This closes the v0.4 preflight acceptance target. The meaning of `READY` remains deliberately narrow: evidence is sufficient to form a proposal under policy; human confirmation and execution authority remain separate.

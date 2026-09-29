@@ -1,6 +1,6 @@
 # v0.4 read-only preflight live acceptance
 
-This directory ships with the v0.4 preflight implementation rather than being written after the feature.
+This directory contains the interactive acceptance harness used to live-verify the v0.4.0 read-only preflight checkpoint.
 
 The harness automates read-only HTTP verification and keeps KoLmafia gCLI / Actor Engine restart boundaries behind explicit default-`N` prompts.
 
@@ -18,7 +18,7 @@ Five repeated preflight reads must leave the audit ledger count unchanged.
 
 The harness creates one **unconfirmed** release-stage proposal only to prove that a non-idle proposal gate closes readiness. It never confirms or successfully executes that proposal.
 
-Expected terminal result:
+Observed terminal result on 2026-09-29:
 
 ```text
 PASS LIVE_READ_ONLY_PREFLIGHT_TEST
@@ -27,3 +27,5 @@ Repeated preflight reads appended no audit evidence.
 The test proposal was never confirmed or successfully executed.
 READY never granted execution authority.
 ```
+
+The result was obtained against exact repository HEAD `57aa6f627d9edb765d9e44304bde060418eb20f4`; v0.4.0 is therefore a verified checkpoint.

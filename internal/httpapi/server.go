@@ -83,7 +83,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.4.0-dev",
+		"version":                    "0.4.0",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,

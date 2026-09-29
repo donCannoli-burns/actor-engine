@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.4.0-dev
+# Actor Engine — KoL actor runtime prototype v0.4.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -92,7 +92,7 @@ Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test
 
 Observed live result: `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`. The harness confirmed runtime turnover, deterministic observation identity across repeated and cross-restart observations, proposal/audit provenance binding, and non-restoration of the pre-restart proposal. It did not confirm or successfully execute `release.stage`.
 
-## v0.4 development — read-only runtime preflight
+## Verified v0.4.0 checkpoint — read-only runtime preflight
 
 The next bounded layer adds one **read-only** readiness surface:
 
@@ -121,6 +121,8 @@ The response explicitly includes `preflight_grants_authority: false` and preserv
 Design: [`docs/PREFLIGHT.md`](docs/PREFLIGHT.md)  
 Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](tests/live/v0.4-preflight/read-only-preflight-test.sh)
 
+Observed live result: `PASS LIVE_READ_ONLY_PREFLIGHT_TEST`. The harness proved NOT_READY → READY → NOT_READY → READY across evidence and proposal-gate changes, repeated preflight reads appended no audit evidence, the test proposal was never confirmed or successfully executed, and READY never granted execution authority.
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;
@@ -136,7 +138,7 @@ Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](te
 
 ## Authority boundary
 
-### Live-validated through v0.3.0
+### Live-validated through v0.4.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -156,7 +158,7 @@ Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](te
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed through v0.3.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed through v0.4.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 

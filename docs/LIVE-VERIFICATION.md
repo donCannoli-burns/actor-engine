@@ -295,3 +295,38 @@ Observation identity matched bounded KoL observations deterministically.
 Proposal evidence retained its originating runtime/observation identity.
 No release.stage proposal was confirmed or executed by this test.
 ```
+
+## v0.4.0 live acceptance — read-only runtime preflight
+
+**Status:** `PASS LIVE_READ_ONLY_PREFLIGHT_TEST`  
+**Date:** 2026-09-29  
+**Exact tested repository HEAD:** `57aa6f627d9edb765d9e44304bde060418eb20f4`  
+**Authority expansion:** none
+
+The interactive v0.4 harness passed against the real local Actor Engine / KoLmafia runtime.
+
+It verified the expected readiness transitions:
+
+```text
+NOT_READY
+  -> fresh explicit evidence
+READY
+  -> unconfirmed pending proposal
+NOT_READY
+  -> Actor Engine restart
+NOT_READY
+  -> fresh explicit evidence
+READY
+```
+
+Five repeated `GET /v1/preflight` reads did not change the audit ledger count. The test proposal was created only to prove that a non-idle proposal gate closes readiness; it was never confirmed and never successfully executed. The final READY result still explicitly reported that preflight grants no authority and that human confirmation remains required.
+
+Observed terminal result:
+
+```text
+PASS LIVE_READ_ONLY_PREFLIGHT_TEST
+Preflight moved NOT_READY -> READY -> NOT_READY -> READY for the expected evidence/gate changes.
+Repeated preflight reads appended no audit evidence.
+The test proposal was never confirmed or successfully executed.
+READY never granted execution authority.
+```

@@ -35,7 +35,7 @@ Neither field grants authority. Neither is accepted as confirmation. Neither res
 
 See [`IDENTITY.md`](IDENTITY.md).
 
-## v0.4 development preflight
+## Verified v0.4.0 preflight
 
 `GET /v1/preflight` returns `kol-actor/preflight-v1`.
 
