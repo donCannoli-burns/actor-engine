@@ -48,6 +48,7 @@ func (g *Gate) Confirm(c protocol.Confirmation) (protocol.Proposal, error) {
 	}
 	if time.Now().After(p.ExpiresAt) {
 		delete(g.pending, c.ProposalID)
+		delete(g.approved, c.ProposalID)
 		return protocol.Proposal{}, fmt.Errorf("proposal %s expired", c.ProposalID)
 	}
 	if c.StateDigest != p.StateDigest {
@@ -68,8 +69,15 @@ func (g *Gate) Consume(id, currentDigest string) (protocol.Proposal, error) {
 	if !ok {
 		return protocol.Proposal{}, fmt.Errorf("proposal %s is not confirmed", id)
 	}
+	if time.Now().After(p.ExpiresAt) {
+		delete(g.pending, id)
+		delete(g.approved, id)
+		return protocol.Proposal{}, fmt.Errorf("proposal %s expired", id)
+	}
 	if c.StateDigest != p.StateDigest || currentDigest != p.StateDigest {
-		return protocol.Proposal{}, fmt.Errorf("state changed after confirmation")
+		delete(g.pending, id)
+		delete(g.approved, id)
+		return protocol.Proposal{}, fmt.Errorf("state changed after confirmation; approval invalidated")
 	}
 	delete(g.pending, id)
 	delete(g.approved, id)
