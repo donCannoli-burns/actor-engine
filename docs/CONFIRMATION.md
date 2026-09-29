@@ -1,6 +1,6 @@
 # Confirmation provenance binding
 
-Status: **v0.6.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.6.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.5.0** at `4b3f7c3e06d2d2c10e57edadfdde1c6b2446b495`  
 Authority change: **none**
 
@@ -97,9 +97,9 @@ There is intentionally no loader, rehydrator, replay hook, or API that converts 
 - confirmation evidence tamper before consume: approval burned;
 - restart: approval disappears even though evidence remains.
 
-## Acceptance target
+## Acceptance result
 
-The interactive harness must prove on the real runtime:
+The interactive harness proved on the real runtime:
 
 1. fresh read-only evidence produces a READY preflight;
 2. a READY-bound proposal is created with admission evidence;
@@ -116,3 +116,22 @@ The interactive harness must prove on the real runtime:
 13. `authority_restored_from_audit` remains false.
 
 The live harness never executes the confirmed proposal while its approval is live.
+
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_CONFIRMATION_PROVENANCE_BINDING_TEST`  
+**Exact tested repository HEAD:** `eee62dc77d35585188e495501ddca987a1943107`  
+**Authority expansion:** none
+
+Observed terminal result:
+
+```text
+PASS LIVE_CONFIRMATION_PROVENANCE_BINDING_TEST
+Human confirmation produced independently verifiable first-class evidence.
+Confirmation evidence bound proposal, state, admission, human, runtime, and timestamp.
+The confirmed proposal was never executed while approval was live.
+Durable confirmation evidence survived restart but did not restore permission.
+```
+
+After Actor Engine restart, execution of the old confirmed proposal returned HTTP 409 `proposal not found`. The historical confirmation evidence remained valid in durable history, but it did not rehydrate approval or execution permission.

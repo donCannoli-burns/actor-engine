@@ -74,7 +74,7 @@ Admission is evidence of proposal eligibility only. The existing state-digest co
 
 See [`ADMISSION.md`](ADMISSION.md).
 
-## v0.6 development confirmation provenance
+## Verified v0.6.0 confirmation provenance
 
 A successful `POST /v1/proposals/{id}/confirm` response now includes a `confirmation` evidence object with:
 
