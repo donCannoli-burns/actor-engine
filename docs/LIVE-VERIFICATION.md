@@ -419,3 +419,37 @@ Confirmation evidence bound proposal, state, admission, human, runtime, and time
 The confirmed proposal was never executed while approval was live.
 Durable confirmation evidence survived restart but did not restore permission.
 ```
+
+
+## v0.7.0 live acceptance — execution-attempt provenance
+
+**Status:** `PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST`  
+**Date:** 2026-09-29  
+**Exact tested repository HEAD:** `e55ddaab5043ada94628eb5016d4050a9eff9feb`  
+**Authority expansion:** none
+
+The real runtime exercised the execution boundary without successfully staging a release:
+
+```text
+READY proposal
+    -> explicit human confirmation
+    -> bounded observation change
+    -> stale execute probe
+    -> HTTP 409 approval invalidated
+    -> first-class execution-attempt evidence
+    -> no execution.started
+    -> no execution.succeeded
+    -> retry = proposal not found
+    -> Actor Engine restart
+    -> evidence survives, authority does not
+```
+
+Observed terminal result:
+
+```text
+PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST
+A stale confirmed proposal was denied before operation start.
+The denial carried independently verifiable execution-attempt provenance.
+No execution.started or execution.succeeded record existed for the test proposal.
+The denial burned proposal authority; retry returned proposal not found.
+```

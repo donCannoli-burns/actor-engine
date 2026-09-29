@@ -1,11 +1,14 @@
 LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST
-status: acceptance pending
-development_version: 0.7.0-dev
+status: PASS
+checkpoint: v0.7.0
+date: 2026-09-29
+tested_repository_head: e55ddaab5043ada94628eb5016d4050a9eff9feb
 verified_base_commit: f749ba14049b23bf82a4085f6727737758406f9f
 execution_version: kol-actor/execution-attempt-v1
 digest: sha256(canonical sorted-key JSON execution-attempt payload excluding digest)
 binds: proposal_id; operation; proposal_state_digest; admission_digest; confirmation_digest; origin_runtime_id; execution_runtime_id; current_state_digest; attempted_at; gate_decision
-live_path: confirmed proposal -> changed bounded observation -> stale execute denial
-must_prove: observation changed before execute; HTTP 409 approval invalidated; independent digest recomputation; gate_decision=denied; no execution.started; no execution.succeeded; retry proposal not found
+live_path: confirmed proposal -> changed bounded observation -> stale execute denial -> restart durability proof
+must_prove: observation changed before execute; HTTP 409 approval invalidated; independent digest recomputation; gate_decision=denied; no execution.started; no execution.succeeded; retry proposal not found; evidence survives restart without authority
 must_not: successfully execute release.stage; install release; restart KoLmafia; mutate live KoL state
-human_boundaries: kol_actor sync; confirmation y/N; kol_actor turn; stale execute y/N; optional Actor Engine restart y/N
+human_boundaries: kol_actor sync; confirmation y/N; kol_actor turn; stale execute y/N; Actor Engine restart y/N
+result: PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST
