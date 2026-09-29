@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/donCannoli-burns/actor-engine/internal/admission"
+	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 )
 
 type MessageKind string
@@ -73,8 +74,10 @@ type Receipt struct {
 	ObservationID      string    `json:"observation_id,omitempty"`
 	AdmissionDigest    string    `json:"admission_digest,omitempty"`
 	ConfirmationDigest string    `json:"confirmation_digest,omitempty"`
-	ExecutionDigest    string    `json:"execution_digest,omitempty"`
-	Operation          string    `json:"operation"`
+	ExecutionDigest       string                  `json:"execution_digest,omitempty"`
+	ReconciliationDigest  string                  `json:"reconciliation_digest,omitempty"`
+	Reconciliation        reconciliation.Evidence `json:"reconciliation,omitempty"`
+	Operation             string    `json:"operation"`
 	Success            bool      `json:"success"`
 	Detail             string    `json:"detail"`
 	ArtifactPath       string    `json:"artifact_path,omitempty"`

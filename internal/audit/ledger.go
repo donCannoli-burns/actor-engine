@@ -14,6 +14,7 @@ import (
 
 	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
 	"github.com/donCannoli-burns/actor-engine/internal/execution"
+	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 )
 
 const MaxRecent = 100
@@ -42,8 +43,10 @@ type Event struct {
 	ConfirmationDigest string                 `json:"confirmation_digest,omitempty"`
 	Confirmation       *confirmation.Evidence `json:"confirmation,omitempty"`
 	ExecutionDigest    string                 `json:"execution_digest,omitempty"`
-	Execution          *execution.Evidence    `json:"execution,omitempty"`
-	Operation          string                 `json:"operation,omitempty"`
+	Execution          *execution.Evidence       `json:"execution,omitempty"`
+	ReconciliationDigest string                  `json:"reconciliation_digest,omitempty"`
+	Reconciliation       *reconciliation.Evidence `json:"reconciliation,omitempty"`
+	Operation             string                 `json:"operation,omitempty"`
 	StateDigest        string                 `json:"state_digest,omitempty"`
 	Actor              string                 `json:"actor,omitempty"`
 	Result             string                 `json:"result,omitempty"`

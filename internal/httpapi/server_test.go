@@ -22,6 +22,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
+	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
@@ -183,6 +184,15 @@ func TestReleaseStageFlow(t *testing.T) {
 	if receipt.ExecutionDigest == "" {
 		t.Fatal("receipt execution digest is empty")
 	}
+	if receipt.ReconciliationDigest == "" {
+		t.Fatal("receipt reconciliation digest is empty")
+	}
+	if err := reconciliation.Verify(receipt.Reconciliation); err != nil {
+		t.Fatalf("receipt reconciliation invalid: %v", err)
+	}
+	if receipt.Reconciliation.Digest != receipt.ReconciliationDigest {
+		t.Fatalf("receipt reconciliation digest = %q, nested = %q", receipt.ReconciliationDigest, receipt.Reconciliation.Digest)
+	}
 	got, err := os.ReadFile(filepath.Join(stageDir, "KoLmafia-29309.jar"))
 	if err != nil {
 		t.Fatalf("read staged file: %v", err)
@@ -224,6 +234,17 @@ func TestReleaseStageFlow(t *testing.T) {
 		}
 		if i >= 2 && auditOut.Events[i].ExecutionDigest != receipt.ExecutionDigest {
 			t.Fatalf("audit event[%d].ExecutionDigest = %q, want %q", i, auditOut.Events[i].ExecutionDigest, receipt.ExecutionDigest)
+		}
+		if i == 3 {
+			if auditOut.Events[i].Reconciliation == nil {
+				t.Fatal("terminal audit event missing reconciliation evidence")
+			}
+			if auditOut.Events[i].ReconciliationDigest != receipt.ReconciliationDigest {
+				t.Fatalf("terminal reconciliation digest = %q, want %q", auditOut.Events[i].ReconciliationDigest, receipt.ReconciliationDigest)
+			}
+			if err := reconciliation.Verify(*auditOut.Events[i].Reconciliation); err != nil {
+				t.Fatalf("durable reconciliation invalid: %v", err)
+			}
 		}
 		if i == 2 {
 			if auditOut.Events[i].Execution == nil {
@@ -620,5 +641,156 @@ func TestStaleStateDenialCarriesExecutionAttemptEvidence(t *testing.T) {
 	}
 	if denied.Execution.ProposalStateDigest == denied.Execution.CurrentStateDigest {
 		t.Fatalf("expected changed state digests, got %+v", denied.Execution)
+	}
+}
+
+
+func TestFailedStageProducesReconciliationEvidenceWithoutCommittedArtifact(t *testing.T) {
+	t.Parallel()
+	jar := []byte("bad-digest-stage-fixture")
+	actual := sha256.Sum256(jar)
+	actualDigest := hex.EncodeToString(actual[:])
+	wrongDigest := strings.Repeat("0", 64)
+
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/latest":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag_name": "r-bad-digest",
+				"name":     "bad-digest",
+				"html_url": upstream.URL + "/release/r-bad-digest",
+				"assets": []map[string]any{{
+					"name":                 "KoLmafia-bad-digest.jar",
+					"browser_download_url": upstream.URL + "/KoLmafia-bad-digest.jar",
+					"digest":               "sha256:" + wrongDigest,
+				}},
+			})
+		case "/KoLmafia-bad-digest.jar":
+			_, _ = w.Write(jar)
+		case "/health":
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "execution_authority": false})
+		case "/v0/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"available": false, "execution_authority": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	stageDir := t.TempDir()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient(upstream.URL+"/latest"),
+		kingdomsitter.NewClient(upstream.URL),
+		stageDir,
+		ledger,
+		"run-reconcile-failure",
+	)
+	s.SetInstalledRevision("29301")
+	h := s.Handler()
+
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/v1/kingdomsitter/refresh", nil),
+		httptest.NewRequest(http.MethodPost, "/v1/release/refresh", nil),
+		httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=manual&character=doncannoli&total_turns=1&ascension_turns=1&adventures=1&ascensions=1&breakfast=true", nil),
+	} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("setup request %s %s status=%d body=%s", req.Method, req.URL.Path, rr.Code, rr.Body.String())
+		}
+	}
+
+	pr := httptest.NewRecorder()
+	h.ServeHTTP(pr, httptest.NewRequest(http.MethodPost, "/v1/proposals/release-stage", strings.NewReader(`{}`)))
+	if pr.Code != http.StatusCreated {
+		t.Fatalf("proposal status=%d body=%s", pr.Code, pr.Body.String())
+	}
+	var p protocol.Proposal
+	if err := json.Unmarshal(pr.Body.Bytes(), &p); err != nil {
+		t.Fatalf("decode proposal: %v", err)
+	}
+
+	cr := httptest.NewRecorder()
+	body := fmt.Sprintf(`{"state_digest":%q,"confirmed_by":"human"}`, p.StateDigest)
+	h.ServeHTTP(cr, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+p.ID+"/confirm", strings.NewReader(body)))
+	if cr.Code != http.StatusOK {
+		t.Fatalf("confirm status=%d body=%s", cr.Code, cr.Body.String())
+	}
+
+	er := httptest.NewRecorder()
+	h.ServeHTTP(er, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+p.ID+"/execute", nil))
+	if er.Code != http.StatusOK {
+		t.Fatalf("execute status=%d body=%s", er.Code, er.Body.String())
+	}
+	var receipt protocol.Receipt
+	if err := json.Unmarshal(er.Body.Bytes(), &receipt); err != nil {
+		t.Fatalf("decode receipt: %v", err)
+	}
+	if receipt.Success {
+		t.Fatalf("receipt.Success=true, want false: %+v", receipt)
+	}
+	if !strings.Contains(receipt.Detail, "digest mismatch") {
+		t.Fatalf("receipt detail=%q, want digest mismatch", receipt.Detail)
+	}
+	if receipt.SHA256 != actualDigest {
+		t.Fatalf("receipt SHA256=%q, want %q", receipt.SHA256, actualDigest)
+	}
+	if receipt.ArtifactPath != "" {
+		t.Fatalf("receipt artifact path=%q, want empty", receipt.ArtifactPath)
+	}
+	if receipt.ReconciliationDigest == "" {
+		t.Fatal("reconciliation digest is empty")
+	}
+	if err := reconciliation.Verify(receipt.Reconciliation); err != nil {
+		t.Fatalf("reconciliation verify: %v", err)
+	}
+	if receipt.Reconciliation.Success || receipt.Reconciliation.Outcome != reconciliation.OutcomeFailed {
+		t.Fatalf("reconciliation outcome=%+v", receipt.Reconciliation)
+	}
+	if receipt.Reconciliation.ArtifactCommitted {
+		t.Fatalf("failed reconciliation marked artifact committed: %+v", receipt.Reconciliation)
+	}
+
+	entries, err := os.ReadDir(stageDir)
+	if err != nil {
+		t.Fatalf("read stage dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("stage dir not empty after digest mismatch: %+v", entries)
+	}
+
+	recent := ledger.Recent(20)
+	var started, failed *audit.Event
+	for i := range recent {
+		switch {
+		case recent[i].ProposalID == p.ID && recent[i].Type == audit.EventExecutionStarted:
+			started = &recent[i]
+		case recent[i].ProposalID == p.ID && recent[i].Type == audit.EventExecutionFailed:
+			failed = &recent[i]
+		}
+	}
+	if started == nil || failed == nil {
+		t.Fatalf("missing execution lifecycle events: %+v", recent)
+	}
+	if started.ExecutionDigest == "" || failed.ExecutionDigest != started.ExecutionDigest {
+		t.Fatalf("execution digest chain mismatch: started=%+v failed=%+v", started, failed)
+	}
+	if failed.Reconciliation == nil || failed.ReconciliationDigest != receipt.ReconciliationDigest {
+		t.Fatalf("terminal reconciliation missing/mismatched: %+v", failed)
+	}
+	if err := reconciliation.Verify(*failed.Reconciliation); err != nil {
+		t.Fatalf("durable reconciliation verify: %v", err)
+	}
+	for _, e := range recent {
+		if e.ProposalID == p.ID && e.Type == audit.EventExecutionSucceeded {
+			t.Fatalf("unexpected execution.succeeded: %+v", e)
+		}
 	}
 }
