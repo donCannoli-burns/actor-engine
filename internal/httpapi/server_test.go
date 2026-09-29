@@ -9,12 +9,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
+	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
@@ -208,5 +211,112 @@ func TestAuditHistoryDoesNotRestoreAuthority(t *testing.T) {
 	}
 	if recent[len(recent)-1].RuntimeID != "run-restarted" {
 		t.Fatalf("last audit runtime id = %q, want run-restarted", recent[len(recent)-1].RuntimeID)
+	}
+}
+
+
+func TestPreflightIsReadOnlyAndFreshnessAware(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 29, 16, 0, 0, 0, time.UTC)
+
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/latest":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag_name": "r29315",
+				"name":     "29315",
+				"html_url": upstream.URL + "/release/r29315",
+				"assets": []map[string]any{{
+					"name":                 "KoLmafia-29315.jar",
+					"browser_download_url": upstream.URL + "/KoLmafia-29315.jar",
+					"digest":               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				}},
+			})
+		case "/health":
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "execution_authority": false})
+		case "/v0/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"available": false, "execution_authority": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open audit ledger: %v", err)
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient(upstream.URL+"/latest"),
+		kingdomsitter.NewClient(upstream.URL),
+		t.TempDir(),
+		ledger,
+		"run-preflight-test",
+	)
+	s.now = func() time.Time { return now }
+	s.SetInstalledRevision("29301")
+	h := s.Handler()
+
+	getPreflight := func() preflight.Result {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/v1/preflight", nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("preflight status = %d, body=%s", rr.Code, rr.Body.String())
+		}
+		var out preflight.Result
+		if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode preflight: %v", err)
+		}
+		return out
+	}
+
+	initial := getPreflight()
+	if initial.Status != "NOT_READY" || initial.ReadyForProposal {
+		t.Fatalf("initial preflight = %+v", initial)
+	}
+
+	refreshRelease := httptest.NewRecorder()
+	h.ServeHTTP(refreshRelease, httptest.NewRequest(http.MethodPost, "/v1/release/refresh", nil))
+	if refreshRelease.Code != http.StatusOK {
+		t.Fatalf("release refresh status = %d, body=%s", refreshRelease.Code, refreshRelease.Body.String())
+	}
+	refreshSidecar := httptest.NewRecorder()
+	h.ServeHTTP(refreshSidecar, httptest.NewRequest(http.MethodGet, "/v1/kingdomsitter/refresh", nil))
+	if refreshSidecar.Code != http.StatusOK {
+		t.Fatalf("sidecar refresh status = %d, body=%s", refreshSidecar.Code, refreshSidecar.Body.String())
+	}
+	observe := httptest.NewRecorder()
+	h.ServeHTTP(observe, httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=manual&character=doncannoli&total_turns=522711&ascension_turns=20439&adventures=219&ascensions=349&breakfast=true", nil))
+	if observe.Code != http.StatusOK {
+		t.Fatalf("observe status = %d, body=%s", observe.Code, observe.Body.String())
+	}
+
+	before := ledger.Status().Count
+	ready := getPreflight()
+	after := ledger.Status().Count
+	if before != after {
+		t.Fatalf("preflight mutated audit ledger count: before=%d after=%d", before, after)
+	}
+	if ready.Status != "READY" || !ready.ReadyForProposal {
+		t.Fatalf("ready preflight = status %q ready=%t reasons=%v", ready.Status, ready.ReadyForProposal, ready.Reasons)
+	}
+	if ready.Authority.PreflightGrantsAuthority {
+		t.Fatal("preflight unexpectedly grants authority")
+	}
+
+	now = now.Add(6 * time.Minute)
+	stale := getPreflight()
+	if stale.Status != "NOT_READY" || stale.ReadyForProposal {
+		t.Fatalf("stale preflight = status %q ready=%t reasons=%v", stale.Status, stale.ReadyForProposal, stale.Reasons)
+	}
+	if !slices.Contains(stale.Reasons, "kol_observation_stale") {
+		t.Fatalf("stale reasons=%v missing kol_observation_stale", stale.Reasons)
+	}
+	if !slices.Contains(stale.Reasons, "kingdomsitter_status_stale") {
+		t.Fatalf("stale reasons=%v missing kingdomsitter_status_stale", stale.Reasons)
 	}
 }
