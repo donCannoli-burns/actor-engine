@@ -16,6 +16,7 @@ import (
 
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
+	"github.com/donCannoli-burns/actor-engine/internal/identity"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
@@ -30,21 +31,23 @@ type Server struct {
 	kingdom     *kingdomsitter.Client
 	stageDir    string
 	audit       *audit.Ledger
+	runtimeID   string
 	snapshot    protocol.Snapshot
 	latest      release.Info
 	pending     *protocol.Proposal
 	lastReceipt *protocol.Receipt
 }
 
-func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string, ledger *audit.Ledger) *Server {
+func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string, ledger *audit.Ledger, runtimeID string) *Server {
 	return &Server{
-		plane:    plane,
-		gate:     g,
-		releases: releases,
-		kingdom:  kingdom,
-		stageDir: stageDir,
-		audit:    ledger,
-		snapshot: protocol.Snapshot{Version: "kol-actor/v1", UpdatedAt: time.Now().UTC()},
+		plane:     plane,
+		gate:      g,
+		releases:  releases,
+		kingdom:   kingdom,
+		stageDir:  stageDir,
+		audit:     ledger,
+		runtimeID: runtimeID,
+		snapshot:  protocol.Snapshot{Version: "kol-actor/v1", RuntimeID: runtimeID, UpdatedAt: time.Now().UTC()},
 	}
 }
 
@@ -73,7 +76,8 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.2.0",
+		"version":                    "0.3.0-dev",
+		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
 		"evidence_persistence":       "hash-chained-jsonl",
@@ -177,12 +181,19 @@ func (s *Server) ingestKoLState(w http.ResponseWriter, r *http.Request) {
 	for _, key := range allowed {
 		state[key] = q.Get(key)
 	}
+	observationID := identity.ObservationID(state)
 	s.mu.Lock()
 	s.snapshot.KoLState = state
+	s.snapshot.ObservationID = observationID
 	s.snapshot.Fault = ""
 	s.mu.Unlock()
 	s.plane.Activate(stateplane.StateKoLStateSeen)
-	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "execution_authority": false})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accepted":            true,
+		"runtime_id":          s.runtimeID,
+		"observation_id":      observationID,
+		"execution_authority": false,
+	})
 }
 
 func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +224,8 @@ func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
 	}
 	p := protocol.Proposal{
 		ID:              randomID(),
+		RuntimeID:       snapshot.RuntimeID,
+		ObservationID:   snapshot.ObservationID,
 		Operation:       "release.stage",
 		Risk:            "local-write-reversible",
 		StateDigest:     digest,
@@ -223,14 +236,14 @@ func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
 		RequiresConfirm: true,
 	}
 	s.gate.Put(p)
-	if _, err := s.audit.Append(audit.Event{
+	if _, err := s.audit.Append(s.withIdentity(audit.Event{
 		Type:        audit.EventProposalCreated,
 		ProposalID:  p.ID,
 		Operation:   p.Operation,
 		StateDigest: p.StateDigest,
 		Result:      "pending",
 		Detail:      p.HumanSummary,
-	}); err != nil {
+	})); err != nil {
 		s.gate.Drop(p.ID)
 		s.setFault(fmt.Errorf("audit proposal creation: %w", err))
 		http.Error(w, "audit ledger unavailable; proposal refused", http.StatusServiceUnavailable)
@@ -256,14 +269,14 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 	confirmation := protocol.Confirmation{ProposalID: id, StateDigest: in.StateDigest, ConfirmedBy: in.ConfirmedBy, ConfirmedAt: time.Now().UTC()}
 	p, err := s.gate.Confirm(confirmation)
 	if err != nil {
-		if _, auditErr := s.audit.Append(audit.Event{
+		if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 			Type:        audit.EventConfirmationDenied,
 			ProposalID:  id,
 			StateDigest: in.StateDigest,
 			Actor:       in.ConfirmedBy,
 			Result:      "denied",
 			Detail:      err.Error(),
-		}); auditErr != nil {
+		})); auditErr != nil {
 			s.setFault(fmt.Errorf("audit confirmation denial: %w", auditErr))
 			http.Error(w, "audit ledger unavailable; confirmation refused", http.StatusServiceUnavailable)
 			return
@@ -271,14 +284,14 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
-	if _, auditErr := s.audit.Append(audit.Event{
+	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 		Type:        audit.EventProposalConfirmed,
 		ProposalID:  p.ID,
 		Operation:   p.Operation,
 		StateDigest: p.StateDigest,
 		Actor:       confirmation.ConfirmedBy,
 		Result:      "confirmed",
-	}); auditErr != nil {
+	})); auditErr != nil {
 		s.gate.Drop(p.ID)
 		s.clearPending(p.ID)
 		s.plane.SetExclusive(stateplane.ProposalStates, "")
@@ -310,13 +323,13 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		case strings.Contains(err.Error(), "expired"):
 			eventType = audit.EventProposalExpired
 		}
-		if _, auditErr := s.audit.Append(audit.Event{
+		if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 			Type:        eventType,
 			ProposalID:  id,
 			StateDigest: currentDigest,
 			Result:      "denied",
 			Detail:      err.Error(),
-		}); auditErr != nil {
+		})); auditErr != nil {
 			s.setFault(fmt.Errorf("audit execution denial: %w", auditErr))
 			http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
 			return
@@ -329,13 +342,13 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, auditErr := s.audit.Append(audit.Event{
+	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 		Type:        audit.EventExecutionStarted,
 		ProposalID:  p.ID,
 		Operation:   p.Operation,
 		StateDigest: p.StateDigest,
 		Result:      "started",
-	}); auditErr != nil {
+	})); auditErr != nil {
 		s.clearPending(p.ID)
 		s.plane.SetExclusive(stateplane.ProposalStates, "")
 		s.setFault(fmt.Errorf("audit execution start: %w", auditErr))
@@ -358,7 +371,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			receipt = failedReceipt(p, stageErr)
 			break
 		}
-		receipt = protocol.Receipt{ProposalID: p.ID, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
+		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
 	default:
 		receipt = failedReceipt(p, fmt.Errorf("operation %q is not implemented", p.Operation))
 	}
@@ -369,7 +382,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		terminalType = audit.EventExecutionSucceeded
 		result = "success"
 	}
-	if _, auditErr := s.audit.Append(audit.Event{
+	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 		Type:         terminalType,
 		ProposalID:   p.ID,
 		Operation:    p.Operation,
@@ -378,7 +391,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		Detail:       receipt.Detail,
 		ArtifactPath: receipt.ArtifactPath,
 		SHA256:       receipt.SHA256,
-	}); auditErr != nil {
+	})); auditErr != nil {
 		rollbackDetail := ""
 		if receipt.Success && receipt.ArtifactPath != "" {
 			if removeErr := os.Remove(receipt.ArtifactPath); removeErr != nil && !os.IsNotExist(removeErr) {
@@ -409,6 +422,18 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		s.plane.Activate(stateplane.StateFaulted)
 	}
 	writeJSON(w, http.StatusOK, receipt)
+}
+
+func (s *Server) withIdentity(event audit.Event) audit.Event {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if event.RuntimeID == "" {
+		event.RuntimeID = s.runtimeID
+	}
+	if event.ObservationID == "" {
+		event.ObservationID = s.snapshot.ObservationID
+	}
+	return event
 }
 
 func (s *Server) clearPending(id string) {
@@ -464,7 +489,7 @@ func normalizeRevision(value string) string {
 }
 
 func failedReceipt(p protocol.Proposal, err error) protocol.Receipt {
-	return protocol.Receipt{ProposalID: p.ID, Operation: p.Operation, Success: false, Detail: err.Error(), CompletedAt: time.Now().UTC()}
+	return protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, Operation: p.Operation, Success: false, Detail: err.Error(), CompletedAt: time.Now().UTC()}
 }
 
 func errorText(err error) string {

@@ -26,6 +26,9 @@ type Envelope struct {
 
 type Snapshot struct {
 	Version              string            `json:"version"`
+	RuntimeID            string            `json:"runtime_id"`
+	ObservationID        string            `json:"observation_id,omitempty"`
+	UpdatedAt            time.Time            `json:"version"`
 	UpdatedAt            time.Time         `json:"updated_at"`
 	ActiveStates         []string          `json:"active_states"`
 	InstalledRevision    string            `json:"installed_revision,omitempty"`
@@ -41,6 +44,9 @@ type Snapshot struct {
 
 type Proposal struct {
 	ID              string         `json:"id"`
+	RuntimeID       string         `json:"runtime_id"`
+	ObservationID   string         `json:"observation_id,omitempty"`
+	Operation       string         `json:"id"`
 	Operation       string         `json:"operation"`
 	Risk            string         `json:"risk"`
 	StateDigest     string         `json:"state_digest"`
@@ -59,7 +65,10 @@ type Confirmation struct {
 }
 
 type Receipt struct {
-	ProposalID   string    `json:"proposal_id"`
+	ProposalID    string    `json:"proposal_id"`
+	RuntimeID     string    `json:"runtime_id"`
+	ObservationID string    `json:"observation_id,omitempty"`
+	Operation     string    `json:"proposal_id"`
 	Operation    string    `json:"operation"`
 	Success      bool      `json:"success"`
 	Detail       string    `json:"detail"`

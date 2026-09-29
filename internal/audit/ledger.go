@@ -32,8 +32,10 @@ type Event struct {
 	Seq          uint64    `json:"seq"`
 	At           time.Time `json:"at"`
 	Type         string    `json:"type"`
-	ProposalID   string    `json:"proposal_id,omitempty"`
-	Operation    string    `json:"operation,omitempty"`
+	ProposalID    string    `json:"proposal_id,omitempty"`
+	RuntimeID     string    `json:"runtime_id,omitempty"`
+	ObservationID string    `json:"observation_id,omitempty"`
+	Operation     string    `json:"operation,omitempty"`
 	StateDigest  string    `json:"state_digest,omitempty"`
 	Actor        string    `json:"actor,omitempty"`
 	Result       string    `json:"result,omitempty"`
