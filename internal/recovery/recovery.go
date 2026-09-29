@@ -21,10 +21,10 @@ const (
 )
 
 type AuthorityBoundary struct {
-	ReplayPermitted      bool `json:"replay_permitted"`
-	AuthorityRestorable  bool `json:"authority_restorable"`
-	AutomaticResolution  bool `json:"automatic_resolution"`
-	EvidenceOnly         bool `json:"evidence_only"`
+	ReplayPermitted     bool `json:"replay_permitted"`
+	AuthorityRestorable bool `json:"authority_restorable"`
+	AutomaticResolution bool `json:"automatic_resolution"`
+	EvidenceOnly        bool `json:"evidence_only"`
 }
 
 type Interruption struct {
@@ -49,12 +49,12 @@ type Interruption struct {
 }
 
 type Report struct {
-	Version      string            `json:"version"`
-	Status       string            `json:"status"`
-	GeneratedAt  time.Time         `json:"generated_at"`
-	RuntimeID    string            `json:"runtime_id"`
-	Unresolved   []Interruption    `json:"unresolved"`
-	Authority    AuthorityBoundary `json:"authority"`
+	Version     string            `json:"version"`
+	Status      string            `json:"status"`
+	GeneratedAt time.Time         `json:"generated_at"`
+	RuntimeID   string            `json:"runtime_id"`
+	Unresolved  []Interruption    `json:"unresolved"`
+	Authority   AuthorityBoundary `json:"authority"`
 }
 
 type interruptionDigestPayload struct {

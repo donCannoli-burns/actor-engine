@@ -89,7 +89,6 @@ func TestBuildRequiresEvidencePresence(t *testing.T) {
 	}
 }
 
-
 func TestBuildBlocksUnresolvedInterruptedExecution(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 9, 29, 16, 0, 0, 0, time.UTC)

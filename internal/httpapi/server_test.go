@@ -795,7 +795,6 @@ func TestFailedStageProducesReconciliationEvidenceWithoutCommittedArtifact(t *te
 	}
 }
 
-
 func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testing.T) {
 	t.Parallel()
 	ledgerPath := filepath.Join(t.TempDir(), "audit.jsonl")
