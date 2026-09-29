@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.1.0
+# Actor Engine — KoL actor runtime prototype v0.2.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -50,9 +50,9 @@ The live run also found and repaired a real bug in the original staging path: a 
 
 Full evidence, commands, observed outcomes, and authority boundary: [`docs/LIVE-VERIFICATION.md`](docs/LIVE-VERIFICATION.md).
 
-## v0.2 development chunk — durable evidence, ephemeral authority
+## Verified v0.2.0 checkpoint — durable evidence, ephemeral authority
 
-The next bounded chunk adds a **hash-chained JSONL evidence ledger** without adding a new operation or restoring authority after restart.
+The v0.2.0 checkpoint adds a **hash-chained JSONL evidence ledger** without adding a new operation or restoring authority after restart. The restart/authority acceptance test passed live on 2026-09-29.
 
 ```text
 evidence survives restart
@@ -69,6 +69,8 @@ With the tested runtime layout it defaults to `~/.kolmafia/kolmaf-ai/actor-engin
 
 Authority-bearing paths also fail closed if required audit evidence cannot be durably appended. See [`docs/AUDIT-LEDGER.md`](docs/AUDIT-LEDGER.md).
 
+Live harness: [`tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`](tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh). Observed terminal result: `PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST`.
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;
@@ -84,7 +86,7 @@ Authority-bearing paths also fail closed if required audit evidence cannot be du
 
 ## Authority boundary
 
-### Live-validated in v0.1.0
+### Live-validated through v0.2.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -104,7 +106,7 @@ Authority-bearing paths also fail closed if required audit evidence cannot be du
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed in v0.1.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed in v0.2.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 

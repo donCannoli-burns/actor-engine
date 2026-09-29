@@ -210,3 +210,39 @@ misuse should require replacement, not activation
 A caller can observe state and present a bounded proposal. A human confirmation is tied to that exact state. If the state changes, the confirmation becomes unusable. Even on the successful path, the implemented write ends at a verified local staging boundary.
 
 **Evidence remains separate from authority.**
+
+## v0.2.0 live acceptance — durable evidence / ephemeral authority
+
+**Status:** `PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST`  
+**Date:** 2026-09-29  
+**Implementation under test:** `5c97d185987b58403f643165f83eb321dde53aa8`  
+**Authority expansion:** none
+
+The v0.2 interactive Bash harness was run against the real local Actor Engine/KoLmafia environment. The human retained the gCLI and restart boundaries through explicit `y/N` prompts.
+
+Observed terminal output:
+
+```text
+PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST
+Evidence survived restart. Proposal/confirmation authority did not.
+No release.stage proposal was executed by this test.
+```
+
+The live run established:
+
+```text
+proposal.created
+proposal.confirmed
+        ↓
+Actor Engine restart
+        ↓
+historical evidence still present
+        ↓
+old proposal execute = 409 proposal not found
+        ↓
+execution.denied appended as new evidence
+```
+
+The test deliberately did **not** execute the confirmed `release.stage` proposal. It therefore tested the persistence/authority boundary without performing a new local staging write.
+
+The acceptance harness is preserved at `tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`.

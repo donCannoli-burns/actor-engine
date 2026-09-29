@@ -1,0 +1,7 @@
+LIVE_LEDGER_RESTART_AUTHORITY_TEST
+checkpoint: v0.2.0
+implementation_commit: 5c97d185987b58403f643165f83eb321dde53aa8
+expected: evidence survives Actor Engine restart; proposal/confirmation authority does not
+must_not: execute release.stage; install/restart KoLmafia; execute arbitrary ASH/gCLI; mutate live KoL state
+human_boundaries: gCLI observation confirmation; proposal confirmation; Actor Engine restart
+result: PASS 2026-09-29

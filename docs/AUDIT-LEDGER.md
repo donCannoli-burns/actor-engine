@@ -1,6 +1,6 @@
 # Audit ledger — durable evidence, ephemeral authority
 
-Status: **v0.2 development chunk**  
+Status: **verified v0.2.0 checkpoint**  
 Authority change: **none**
 
 ## Purpose
@@ -75,3 +75,21 @@ A restart creates a fresh in-memory gate. Historical `proposal.created` and `pro
 ## Non-goals
 
 The ledger does not install releases, restart KoLmafia, execute arbitrary ASH/gCLI, mutate the live game, restore confirmation after restart, or make historical evidence authoritative. It is an evidence primitive, not an authority store.
+
+## Live acceptance checkpoint — 2026-09-29
+
+Implementation under test: `5c97d185987b58403f643165f83eb321dde53aa8`
+
+Interactive harness: `tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`
+
+Observed terminal result:
+
+```text
+PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST
+Evidence survived restart. Proposal/confirmation authority did not.
+No release.stage proposal was executed by this test.
+```
+
+The harness created and confirmed a bounded `release.stage` proposal, verified `proposal.created` and `proposal.confirmed` in the durable ledger, restarted only the Actor Engine sidecar after an explicit human `y/N` gate, and then proved the old proposal returned `409 proposal not found`. The subsequent denial was itself preserved as new audit evidence.
+
+This closes the v0.2 acceptance target: durable evidence is live-proven across restart while authority remains ephemeral.
