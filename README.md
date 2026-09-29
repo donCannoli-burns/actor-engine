@@ -50,6 +50,25 @@ The live run also found and repaired a real bug in the original staging path: a 
 
 Full evidence, commands, observed outcomes, and authority boundary: [`docs/LIVE-VERIFICATION.md`](docs/LIVE-VERIFICATION.md).
 
+## v0.2 development chunk — durable evidence, ephemeral authority
+
+The next bounded chunk adds a **hash-chained JSONL evidence ledger** without adding a new operation or restoring authority after restart.
+
+```text
+evidence survives restart
+authority does not
+```
+
+The ledger records proposal/execution lifecycle evidence, verifies its sequence and SHA-256 hash chain at startup, and exposes recent evidence read-only at:
+
+```bash
+curl 'http://127.0.0.1:10424/v1/audit/recent?limit=20'
+```
+
+With the tested runtime layout it defaults to `~/.kolmafia/kolmaf-ai/actor-engine-runtime/audit.jsonl`. A past `proposal.confirmed` record is historical evidence only: the in-memory gate is empty after restart and no confirmation authority is reconstructed.
+
+Authority-bearing paths also fail closed if required audit evidence cannot be durably appended. See [`docs/AUDIT-LEDGER.md`](docs/AUDIT-LEDGER.md).
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;

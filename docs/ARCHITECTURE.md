@@ -37,3 +37,19 @@ A confirmed staging flow moves through:
 `awaiting_confirmation -> proposal_ready -> executing -> reconciling -> release_staged`
 
 These are state activations, not a claim that every pair is a legal global FSM edge.
+
+## Durable evidence plane (v0.2 development)
+
+The audit ledger sits beside, not inside, the authority gate:
+
+```text
+proposal gate  ---- ephemeral authority; empty after restart
+      |
+      +------> audit ledger ---- durable, hash-chained evidence
+      |
+      +------> local stager ---- only after execution.started is durable
+```
+
+Existing ledger records are verified on startup, but they are never replayed into the gate. If required proposal/confirmation/execution evidence cannot be appended, that authority-bearing path fails closed. If a stage succeeds but its terminal audit record cannot be committed, Actor Engine attempts to remove the staged artifact and reports a fault.
+
+See [`AUDIT-LEDGER.md`](AUDIT-LEDGER.md).

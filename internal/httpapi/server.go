@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
@@ -26,19 +29,21 @@ type Server struct {
 	releases    *release.Client
 	kingdom     *kingdomsitter.Client
 	stageDir    string
+	audit       *audit.Ledger
 	snapshot    protocol.Snapshot
 	latest      release.Info
 	pending     *protocol.Proposal
 	lastReceipt *protocol.Receipt
 }
 
-func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string) *Server {
+func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string, ledger *audit.Ledger) *Server {
 	return &Server{
 		plane:    plane,
 		gate:     g,
 		releases: releases,
 		kingdom:  kingdom,
 		stageDir: stageDir,
+		audit:    ledger,
 		snapshot: protocol.Snapshot{Version: "kol-actor/v1", UpdatedAt: time.Now().UTC()},
 	}
 }
@@ -53,6 +58,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/state", s.state)
+	mux.HandleFunc("GET /v1/audit/recent", s.recentAudit)
 	mux.HandleFunc("GET /v1/release/latest", s.latestRelease)
 	mux.HandleFunc("POST /v1/release/refresh", s.refreshRelease)
 	mux.HandleFunc("POST /v1/proposals/release-stage", s.proposeReleaseStage)
@@ -65,11 +71,13 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":                     true,
-		"name":                   "kol-actor-engine",
-		"version":                "0.1.0",
-		"execution_authority":    "gated-local-operations-only",
-		"live_kolmafia_mutation": false,
+		"ok":                         true,
+		"name":                       "kol-actor-engine",
+		"version":                    "0.1.0",
+		"execution_authority":        "gated-local-operations-only",
+		"live_kolmafia_mutation":     false,
+		"evidence_persistence":       "hash-chained-jsonl",
+		"authority_restored_on_boot": false,
 	})
 }
 
@@ -84,6 +92,23 @@ func (s *Server) state(w http.ResponseWriter, _ *http.Request) {
 	out.ActiveStates = s.plane.Snapshot()
 	out.UpdatedAt = time.Now().UTC()
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) recentAudit(w http.ResponseWriter, r *http.Request) {
+	limit := 25
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > audit.MaxRecent {
+			http.Error(w, fmt.Sprintf("limit must be between 1 and %d", audit.MaxRecent), http.StatusBadRequest)
+			return
+		}
+		limit = n
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ledger":                        s.audit.Status(),
+		"events":                        s.audit.Recent(limit),
+		"authority_restored_from_audit": false,
+	})
 }
 
 func (s *Server) refreshRelease(w http.ResponseWriter, r *http.Request) {
@@ -198,6 +223,19 @@ func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
 		RequiresConfirm: true,
 	}
 	s.gate.Put(p)
+	if _, err := s.audit.Append(audit.Event{
+		Type:        audit.EventProposalCreated,
+		ProposalID:  p.ID,
+		Operation:   p.Operation,
+		StateDigest: p.StateDigest,
+		Result:      "pending",
+		Detail:      p.HumanSummary,
+	}); err != nil {
+		s.gate.Drop(p.ID)
+		s.setFault(fmt.Errorf("audit proposal creation: %w", err))
+		http.Error(w, "audit ledger unavailable; proposal refused", http.StatusServiceUnavailable)
+		return
+	}
 	s.mu.Lock()
 	s.pending = &p
 	s.mu.Unlock()
@@ -215,9 +253,37 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	p, err := s.gate.Confirm(protocol.Confirmation{ProposalID: id, StateDigest: in.StateDigest, ConfirmedBy: in.ConfirmedBy, ConfirmedAt: time.Now().UTC()})
+	confirmation := protocol.Confirmation{ProposalID: id, StateDigest: in.StateDigest, ConfirmedBy: in.ConfirmedBy, ConfirmedAt: time.Now().UTC()}
+	p, err := s.gate.Confirm(confirmation)
 	if err != nil {
+		if _, auditErr := s.audit.Append(audit.Event{
+			Type:        audit.EventConfirmationDenied,
+			ProposalID:  id,
+			StateDigest: in.StateDigest,
+			Actor:       in.ConfirmedBy,
+			Result:      "denied",
+			Detail:      err.Error(),
+		}); auditErr != nil {
+			s.setFault(fmt.Errorf("audit confirmation denial: %w", auditErr))
+			http.Error(w, "audit ledger unavailable; confirmation refused", http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if _, auditErr := s.audit.Append(audit.Event{
+		Type:        audit.EventProposalConfirmed,
+		ProposalID:  p.ID,
+		Operation:   p.Operation,
+		StateDigest: p.StateDigest,
+		Actor:       confirmation.ConfirmedBy,
+		Result:      "confirmed",
+	}); auditErr != nil {
+		s.gate.Drop(p.ID)
+		s.clearPending(p.ID)
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		s.setFault(fmt.Errorf("audit proposal confirmation: %w", auditErr))
+		http.Error(w, "audit ledger unavailable; confirmation invalidated", http.StatusServiceUnavailable)
 		return
 	}
 	s.plane.SetExclusive(stateplane.ProposalStates, stateplane.StateProposalReady)
@@ -237,9 +303,46 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := s.gate.Consume(id, currentDigest)
 	if err != nil {
+		eventType := audit.EventExecutionDenied
+		switch {
+		case strings.Contains(err.Error(), "approval invalidated"):
+			eventType = audit.EventProposalInvalidated
+		case strings.Contains(err.Error(), "expired"):
+			eventType = audit.EventProposalExpired
+		}
+		if _, auditErr := s.audit.Append(audit.Event{
+			Type:        eventType,
+			ProposalID:  id,
+			StateDigest: currentDigest,
+			Result:      "denied",
+			Detail:      err.Error(),
+		}); auditErr != nil {
+			s.setFault(fmt.Errorf("audit execution denial: %w", auditErr))
+			http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
+			return
+		}
+		if err == gate.ErrProposalNotFound || strings.Contains(err.Error(), "approval invalidated") || strings.Contains(err.Error(), "expired") {
+			s.clearPending(id)
+			s.plane.SetExclusive(stateplane.ProposalStates, "")
+		}
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
+
+	if _, auditErr := s.audit.Append(audit.Event{
+		Type:        audit.EventExecutionStarted,
+		ProposalID:  p.ID,
+		Operation:   p.Operation,
+		StateDigest: p.StateDigest,
+		Result:      "started",
+	}); auditErr != nil {
+		s.clearPending(p.ID)
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		s.setFault(fmt.Errorf("audit execution start: %w", auditErr))
+		http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
+		return
+	}
+
 	s.plane.SetExclusive(stateplane.ProposalStates, stateplane.StateExecuting)
 	var receipt protocol.Receipt
 	switch p.Operation {
@@ -259,6 +362,40 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	default:
 		receipt = failedReceipt(p, fmt.Errorf("operation %q is not implemented", p.Operation))
 	}
+
+	terminalType := audit.EventExecutionFailed
+	result := "failed"
+	if receipt.Success {
+		terminalType = audit.EventExecutionSucceeded
+		result = "success"
+	}
+	if _, auditErr := s.audit.Append(audit.Event{
+		Type:         terminalType,
+		ProposalID:   p.ID,
+		Operation:    p.Operation,
+		StateDigest:  p.StateDigest,
+		Result:       result,
+		Detail:       receipt.Detail,
+		ArtifactPath: receipt.ArtifactPath,
+		SHA256:       receipt.SHA256,
+	}); auditErr != nil {
+		rollbackDetail := ""
+		if receipt.Success && receipt.ArtifactPath != "" {
+			if removeErr := os.Remove(receipt.ArtifactPath); removeErr != nil && !os.IsNotExist(removeErr) {
+				rollbackDetail = "; staged artifact rollback failed: " + removeErr.Error()
+			}
+		}
+		failed := failedReceipt(p, fmt.Errorf("audit ledger commit failed: %w%s", auditErr, rollbackDetail))
+		s.mu.Lock()
+		s.lastReceipt = &failed
+		s.pending = nil
+		s.mu.Unlock()
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		s.plane.Activate(stateplane.StateFaulted)
+		writeJSON(w, http.StatusServiceUnavailable, failed)
+		return
+	}
+
 	s.mu.Lock()
 	s.lastReceipt = &receipt
 	s.pending = nil
@@ -272,6 +409,14 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		s.plane.Activate(stateplane.StateFaulted)
 	}
 	writeJSON(w, http.StatusOK, receipt)
+}
+
+func (s *Server) clearPending(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending != nil && s.pending.ID == id {
+		s.pending = nil
+	}
 }
 
 func (s *Server) setFault(err error) {

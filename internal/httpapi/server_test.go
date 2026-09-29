@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
@@ -53,12 +54,17 @@ func TestReleaseStageFlow(t *testing.T) {
 
 	plane := stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly)
 	stageDir := t.TempDir()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open audit ledger: %v", err)
+	}
 	s := New(
 		plane,
 		gate.New(),
 		release.NewClient(upstream.URL+"/latest"),
 		kingdomsitter.NewClient(upstream.URL),
 		stageDir,
+		ledger,
 	)
 	h := s.Handler()
 
@@ -106,5 +112,68 @@ func TestReleaseStageFlow(t *testing.T) {
 	}
 	if string(got) != string(jar) {
 		t.Fatal("staged file contents differ from upstream fixture")
+	}
+
+	auditRR := httptest.NewRecorder()
+	h.ServeHTTP(auditRR, httptest.NewRequest(http.MethodGet, "/v1/audit/recent?limit=10", nil))
+	if auditRR.Code != http.StatusOK {
+		t.Fatalf("audit status = %d, want %d; body=%s", auditRR.Code, http.StatusOK, auditRR.Body.String())
+	}
+	var auditOut struct {
+		Events []audit.Event `json:"events"`
+	}
+	if err := json.Unmarshal(auditRR.Body.Bytes(), &auditOut); err != nil {
+		t.Fatalf("decode audit response: %v", err)
+	}
+	wantTypes := []string{audit.EventProposalCreated, audit.EventProposalConfirmed, audit.EventExecutionStarted, audit.EventExecutionSucceeded}
+	if len(auditOut.Events) != len(wantTypes) {
+		t.Fatalf("audit events = %d, want %d: %+v", len(auditOut.Events), len(wantTypes), auditOut.Events)
+	}
+	for i, want := range wantTypes {
+		if auditOut.Events[i].Type != want {
+			t.Fatalf("audit event[%d].Type = %q, want %q", i, auditOut.Events[i].Type, want)
+		}
+	}
+}
+
+func TestAuditHistoryDoesNotRestoreAuthority(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	ledger, err := audit.Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if _, err := ledger.Append(audit.Event{Type: audit.EventProposalCreated, ProposalID: "p-old", StateDigest: "old", Result: "pending"}); err != nil {
+		t.Fatalf("append proposal: %v", err)
+	}
+	if _, err := ledger.Append(audit.Event{Type: audit.EventProposalConfirmed, ProposalID: "p-old", StateDigest: "old", Actor: "human", Result: "confirmed"}); err != nil {
+		t.Fatalf("append confirmation: %v", err)
+	}
+
+	reopened, err := audit.Open(path)
+	if err != nil {
+		t.Fatalf("reopen audit ledger: %v", err)
+	}
+	plane := stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly)
+	s := New(
+		plane,
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		reopened,
+	)
+
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/proposals/p-old/execute", nil))
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("execute after restart status = %d, want %d; body=%s", rr.Code, http.StatusConflict, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "proposal not found") {
+		t.Fatalf("execute after restart body = %q, want proposal not found", rr.Body.String())
+	}
+	recent := reopened.Recent(10)
+	if recent[len(recent)-1].Type != audit.EventExecutionDenied {
+		t.Fatalf("last audit event = %q, want %q", recent[len(recent)-1].Type, audit.EventExecutionDenied)
 	}
 }
