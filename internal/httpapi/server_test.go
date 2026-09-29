@@ -23,6 +23,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
+	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
@@ -791,5 +792,86 @@ func TestFailedStageProducesReconciliationEvidenceWithoutCommittedArtifact(t *te
 		if e.ProposalID == p.ID && e.Type == audit.EventExecutionSucceeded {
 			t.Fatalf("unexpected execution.succeeded: %+v", e)
 		}
+	}
+}
+
+func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testing.T) {
+	t.Parallel()
+	ledgerPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	ledger, err := audit.Open(ledgerPath)
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	execEvidence := execution.Evidence{
+		Version:                 execution.Version,
+		Digest:                  "sha256:execution",
+		ProposalID:              "p-interrupted",
+		Operation:               "release.stage",
+		ProposalStateDigest:     "proposal-state",
+		AdmissionDigest:         "sha256:admission",
+		ConfirmationDigest:      "sha256:confirmation",
+		OriginRuntimeID:         "run-origin",
+		ExecutionRuntimeID:      "run-origin",
+		CurrentStateDigest:      "proposal-state",
+		AttemptedAt:             time.Date(2026, 9, 29, 23, 30, 0, 0, time.UTC),
+		GateDecision:            execution.GateAuthorized,
+		EvidenceGrantsAuthority: false,
+	}
+	started, err := ledger.Append(audit.Event{
+		Type:               audit.EventExecutionStarted,
+		ProposalID:         "p-interrupted",
+		RuntimeID:          "run-origin",
+		ObservationID:      "obs-origin",
+		AdmissionDigest:    "sha256:admission",
+		ConfirmationDigest: "sha256:confirmation",
+		ExecutionDigest:    "sha256:execution",
+		Execution:          &execEvidence,
+		Operation:          "release.stage",
+		StateDigest:        "proposal-state",
+		Result:             "started",
+	})
+	if err != nil {
+		t.Fatalf("append started: %v", err)
+	}
+	if started.Hash == "" {
+		t.Fatal("started event hash is empty")
+	}
+
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		ledger,
+		"run-recovery",
+	)
+	h := s.Handler()
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/v1/recovery", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("recovery status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var report recovery.Report
+	if err := json.Unmarshal(rr.Body.Bytes(), &report); err != nil {
+		t.Fatalf("decode recovery: %v", err)
+	}
+	if report.Status != recovery.StatusInterrupted || len(report.Unresolved) != 1 {
+		t.Fatalf("recovery report=%+v", report)
+	}
+	if err := recovery.Verify(report.Unresolved[0]); err != nil {
+		t.Fatalf("verify interruption: %v", err)
+	}
+	if report.Unresolved[0].StartedEventHash != started.Hash {
+		t.Fatalf("started hash=%q want=%q", report.Unresolved[0].StartedEventHash, started.Hash)
+	}
+	if report.Authority.ReplayPermitted || report.Authority.AuthorityRestorable || report.Authority.AutomaticResolution {
+		t.Fatalf("unsafe recovery authority=%+v", report.Authority)
+	}
+
+	pf := s.preflightResult()
+	if !slices.Contains(pf.Reasons, "interrupted_execution_unresolved") {
+		t.Fatalf("preflight reasons=%v missing interrupted execution", pf.Reasons)
 	}
 }

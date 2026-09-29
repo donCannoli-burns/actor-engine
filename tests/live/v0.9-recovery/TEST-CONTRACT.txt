@@ -1,0 +1,12 @@
+LIVE_CRASH_RESTART_RECOVERY_TEST
+status: acceptance pending
+development_version: 0.9.0-dev
+verified_base_commit: 915f8a4900062c41b8ae5128b522157becbb4b3a
+recovery_version: kol-actor/recovery-v1
+interruption_version: kol-actor/interruption-v1
+classification: INTERRUPTED_UNKNOWN_OUTCOME
+digest: sha256(canonical sorted-key JSON interruption payload excluding digest)
+live_path: normal kol_actor sync -> isolated blocking fixture -> READY -> confirm -> execute -> execution.started + .part proven -> SIGKILL isolated engine -> restart -> recovery report -> blocked preflight -> second restart
+must_prove: no terminal record before crash; outcome_known=false; artifact_state=unknown; replay_permitted=false; authority_restorable=false; recovery reads append no audit evidence; new proposals blocked; old proposal absent; digest stable across recovery runtimes; orphan part untouched by recovery
+must_not: infer success/failure; retry execution; clean artifact automatically; use real runtime stage directory; restart KoLmafia; mutate live KoL state
+human_boundaries: kol_actor sync; isolated confirmation y/N; isolated crash-probe execute y/N

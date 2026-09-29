@@ -137,3 +137,16 @@ READY never granted execution authority.
 ```
 
 This closes the v0.4 preflight acceptance target. The meaning of `READY` remains deliberately narrow: evidence is sufficient to form a proposal under policy; human confirmation and execution authority remain separate.
+
+
+## v0.9 extension — unresolved interrupted execution
+
+Current preflight additionally requires:
+
+```text
+no_interrupted_execution
+```
+
+The check fails with reason `interrupted_execution_unresolved` when the verified audit ledger contains a supported `execution.started` record with no matching terminal `execution.succeeded` or `execution.failed` record.
+
+This is an admission block only. Preflight does not resolve, replay, or clean interrupted operations.

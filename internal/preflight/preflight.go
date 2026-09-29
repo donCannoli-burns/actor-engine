@@ -58,6 +58,7 @@ type Input struct {
 	AuditVerified          bool
 	Fault                  string
 	PendingProposalID      string
+	UnresolvedExecutions   int
 	ActiveStates           []string
 }
 
@@ -67,8 +68,8 @@ func Build(in Input) Result {
 		now = time.Now().UTC()
 	}
 
-	checks := make([]Check, 0, 12)
-	reasons := make([]string, 0, 12)
+	checks := make([]Check, 0, 13)
+	reasons := make([]string, 0, 13)
 	add := func(check Check, reason string) {
 		checks = append(checks, check)
 		if check.Required && !check.OK {
@@ -89,6 +90,13 @@ func Build(in Input) Result {
 		Required: true,
 		Detail:   "durable audit ledger must be verified",
 	}, "audit_ledger_unverified")
+
+	add(Check{
+		Name:     "no_interrupted_execution",
+		OK:       in.UnresolvedExecutions == 0,
+		Required: true,
+		Detail:   fmt.Sprintf("unresolved_interrupted_executions=%d", in.UnresolvedExecutions),
+	}, "interrupted_execution_unresolved")
 
 	observationPresent := strings.HasPrefix(in.ObservationID, "obs-") && !in.ObservationAt.IsZero()
 	add(Check{

@@ -142,3 +142,17 @@ Terminal execution records can carry:
 The object is written only on `execution.succeeded` or `execution.failed`. It binds the prior execution digest to the terminal result and artifact state. A failed digest verification therefore records failure provenance while keeping `artifact_committed=false`.
 
 Historical reconciliation records remain evidence only and are never loaded into the in-memory proposal/confirmation gate.
+
+
+## v0.9 development — interrupted execution detection
+
+The recovery scanner reads the complete verified in-memory ledger image and matches terminal records by `execution_digest`.
+
+```text
+execution.started + matching execution.succeeded|failed = terminal history
+execution.started + no matching terminal             = interrupted / unknown outcome
+```
+
+The scanner does not append audit records. Repeated `GET /v1/recovery` reads therefore do not alter the chain.
+
+The interruption digest binds the original `execution.started` sequence number, timestamp, and event hash. The digest remains stable across recovery runtimes while the surrounding report identifies the current runtime that observed it.
