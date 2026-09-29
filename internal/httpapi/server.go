@@ -17,6 +17,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/admission"
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
+	"github.com/donCannoli-burns/actor-engine/internal/execution"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/identity"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
@@ -86,7 +87,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.6.0",
+		"version":                    "0.7.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
@@ -384,6 +385,21 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	}
 	p, confirmationEvidence, err := s.gate.Consume(id, currentDigest)
 	if err != nil {
+		var executionEvidence execution.Evidence
+		if p.ID != "" && confirmationEvidence.Digest != "" {
+			executionEvidence, _ = execution.Bind(execution.Input{
+				ProposalID:          p.ID,
+				Operation:           p.Operation,
+				ProposalStateDigest: p.StateDigest,
+				AdmissionDigest:     p.Admission.Digest,
+				ConfirmationDigest:  confirmationEvidence.Digest,
+				OriginRuntimeID:     p.RuntimeID,
+				ExecutionRuntimeID:  s.runtimeID,
+				CurrentStateDigest:  currentDigest,
+				AttemptedAt:         s.currentTime(),
+				GateDecision:        execution.GateDenied,
+			})
+		}
 		eventType := audit.EventExecutionDenied
 		switch {
 		case strings.Contains(err.Error(), "approval invalidated"):
@@ -397,6 +413,8 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			StateDigest:        currentDigest,
 			AdmissionDigest:    p.Admission.Digest,
 			ConfirmationDigest: confirmationEvidence.Digest,
+			ExecutionDigest:    executionEvidence.Digest,
+			Execution:          executionPointer(executionEvidence),
 			Result:             "denied",
 			Detail:             err.Error(),
 		})); auditErr != nil {
@@ -412,6 +430,25 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	executionEvidence, err := execution.Bind(execution.Input{
+		ProposalID:          p.ID,
+		Operation:           p.Operation,
+		ProposalStateDigest: p.StateDigest,
+		AdmissionDigest:     p.Admission.Digest,
+		ConfirmationDigest:  confirmationEvidence.Digest,
+		OriginRuntimeID:     p.RuntimeID,
+		ExecutionRuntimeID:  s.runtimeID,
+		CurrentStateDigest:  currentDigest,
+		AttemptedAt:         s.currentTime(),
+		GateDecision:        execution.GateAuthorized,
+	})
+	if err != nil {
+		s.clearPending(p.ID)
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		http.Error(w, "execution provenance unavailable: "+err.Error(), http.StatusConflict)
+		return
+	}
+
 	if err := confirmation.Matches(confirmationEvidence, p.ID, p.StateDigest, p.Admission.Digest, p.RuntimeID); err != nil {
 		if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
 			Type:               audit.EventExecutionDenied,
@@ -420,6 +457,8 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			StateDigest:        p.StateDigest,
 			AdmissionDigest:    p.Admission.Digest,
 			ConfirmationDigest: confirmationEvidence.Digest,
+			ExecutionDigest:    executionEvidence.Digest,
+			Execution:          &executionEvidence,
 			Result:             "denied",
 			Detail:             "confirmation provenance invalid: " + err.Error(),
 		})); auditErr != nil {
@@ -439,9 +478,12 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			ProposalID:      p.ID,
 			Operation:       p.Operation,
 			StateDigest:     p.StateDigest,
-			AdmissionDigest: p.Admission.Digest,
-			Result:          "denied",
-			Detail:          "proposal admission invalid: " + err.Error(),
+			AdmissionDigest:    p.Admission.Digest,
+			ConfirmationDigest: confirmationEvidence.Digest,
+			ExecutionDigest:    executionEvidence.Digest,
+			Execution:          &executionEvidence,
+			Result:             "denied",
+			Detail:             "proposal admission invalid: " + err.Error(),
 		})); auditErr != nil {
 			s.setFault(fmt.Errorf("audit admission denial: %w", auditErr))
 			http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
@@ -460,6 +502,8 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		StateDigest:        p.StateDigest,
 		AdmissionDigest:    p.Admission.Digest,
 		ConfirmationDigest: confirmationEvidence.Digest,
+		ExecutionDigest:    executionEvidence.Digest,
+		Execution:          &executionEvidence,
 		Result:             "started",
 	})); auditErr != nil {
 		s.clearPending(p.ID)
@@ -478,18 +522,21 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		if chooseErr != nil {
 			receipt = failedReceipt(p, chooseErr)
 			receipt.ConfirmationDigest = confirmationEvidence.Digest
+			receipt.ExecutionDigest = executionEvidence.Digest
 			break
 		}
 		path, sum, stageErr := s.releases.Stage(r.Context(), asset, s.stageDir)
 		if stageErr != nil {
 			receipt = failedReceipt(p, stageErr)
 			receipt.ConfirmationDigest = confirmationEvidence.Digest
+			receipt.ExecutionDigest = executionEvidence.Digest
 			break
 		}
-		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, AdmissionDigest: p.Admission.Digest, ConfirmationDigest: confirmationEvidence.Digest, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
+		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, AdmissionDigest: p.Admission.Digest, ConfirmationDigest: confirmationEvidence.Digest, ExecutionDigest: executionEvidence.Digest, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
 	default:
 		receipt = failedReceipt(p, fmt.Errorf("operation %q is not implemented", p.Operation))
 		receipt.ConfirmationDigest = confirmationEvidence.Digest
+			receipt.ExecutionDigest = executionEvidence.Digest
 	}
 
 	terminalType := audit.EventExecutionFailed
@@ -505,6 +552,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		StateDigest:        p.StateDigest,
 		AdmissionDigest:    p.Admission.Digest,
 		ConfirmationDigest: confirmationEvidence.Digest,
+		ExecutionDigest:    executionEvidence.Digest,
 		Result:             result,
 		Detail:             receipt.Detail,
 		ArtifactPath:       receipt.ArtifactPath,
@@ -611,6 +659,13 @@ func snapshotForBinding(snapshot protocol.Snapshot, active []string) protocol.Sn
 func normalizeRevision(value string) string {
 	value = strings.TrimSpace(strings.TrimPrefix(value, "r"))
 	return strings.TrimPrefix(value, "KoLmafia-")
+}
+
+func executionPointer(e execution.Evidence) *execution.Evidence {
+	if e.Digest == "" {
+		return nil
+	}
+	return &e
 }
 
 func failedReceipt(p protocol.Proposal, err error) protocol.Receipt {

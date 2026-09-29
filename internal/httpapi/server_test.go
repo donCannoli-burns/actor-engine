@@ -17,6 +17,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/admission"
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
+	"github.com/donCannoli-burns/actor-engine/internal/execution"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
@@ -179,6 +180,9 @@ func TestReleaseStageFlow(t *testing.T) {
 	if receipt.ConfirmationDigest != confirmed.Confirmation.Digest {
 		t.Fatalf("receipt confirmation digest = %q, want %q", receipt.ConfirmationDigest, confirmed.Confirmation.Digest)
 	}
+	if receipt.ExecutionDigest == "" {
+		t.Fatal("receipt execution digest is empty")
+	}
 	got, err := os.ReadFile(filepath.Join(stageDir, "KoLmafia-29309.jar"))
 	if err != nil {
 		t.Fatalf("read staged file: %v", err)
@@ -217,6 +221,20 @@ func TestReleaseStageFlow(t *testing.T) {
 		}
 		if i >= 1 && auditOut.Events[i].ConfirmationDigest != confirmed.Confirmation.Digest {
 			t.Fatalf("audit event[%d].ConfirmationDigest = %q, want %q", i, auditOut.Events[i].ConfirmationDigest, confirmed.Confirmation.Digest)
+		}
+		if i >= 2 && auditOut.Events[i].ExecutionDigest != receipt.ExecutionDigest {
+			t.Fatalf("audit event[%d].ExecutionDigest = %q, want %q", i, auditOut.Events[i].ExecutionDigest, receipt.ExecutionDigest)
+		}
+		if i == 2 {
+			if auditOut.Events[i].Execution == nil {
+				t.Fatal("execution.started audit event missing execution evidence")
+			}
+			if err := execution.Verify(*auditOut.Events[i].Execution); err != nil {
+				t.Fatalf("execution evidence invalid: %v", err)
+			}
+			if auditOut.Events[i].Execution.GateDecision != execution.GateAuthorized {
+				t.Fatalf("execution gate decision = %q, want %q", auditOut.Events[i].Execution.GateDecision, execution.GateAuthorized)
+			}
 		}
 		if i == 1 {
 			if auditOut.Events[i].Confirmation == nil {
@@ -484,5 +502,124 @@ func TestDurableConfirmationEvidenceDoesNotRestoreAuthority(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "proposal not found") {
 		t.Fatalf("execute after restart body = %q, want proposal not found", rr.Body.String())
+	}
+}
+
+
+func TestStaleStateDenialCarriesExecutionAttemptEvidence(t *testing.T) {
+	t.Parallel()
+	jar := []byte("fixture")
+	sum := sha256.Sum256(jar)
+	digest := hex.EncodeToString(sum[:])
+
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/latest":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag_name": "r-test",
+				"assets": []map[string]any{{
+					"name":                 "KoLmafia-test.jar",
+					"browser_download_url": upstream.URL + "/KoLmafia-test.jar",
+					"digest":               "sha256:" + digest,
+				}},
+			})
+		case "/health":
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "execution_authority": false})
+		case "/v0/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"available": false, "execution_authority": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient(upstream.URL+"/latest"),
+		kingdomsitter.NewClient(upstream.URL),
+		t.TempDir(),
+		ledger,
+		"run-stale-execution",
+	)
+	s.SetInstalledRevision("29301")
+	h := s.Handler()
+
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/v1/kingdomsitter/refresh", nil),
+		httptest.NewRequest(http.MethodPost, "/v1/release/refresh", nil),
+		httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=manual&character=doncannoli&total_turns=1&ascension_turns=1&adventures=1&ascensions=1&breakfast=true", nil),
+	} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("setup request %s %s status=%d body=%s", req.Method, req.URL.Path, rr.Code, rr.Body.String())
+		}
+	}
+
+	pr := httptest.NewRecorder()
+	h.ServeHTTP(pr, httptest.NewRequest(http.MethodPost, "/v1/proposals/release-stage", strings.NewReader(`{}`)))
+	if pr.Code != http.StatusCreated {
+		t.Fatalf("proposal status=%d body=%s", pr.Code, pr.Body.String())
+	}
+	var p protocol.Proposal
+	if err := json.Unmarshal(pr.Body.Bytes(), &p); err != nil {
+		t.Fatalf("decode proposal: %v", err)
+	}
+
+	cr := httptest.NewRecorder()
+	body := fmt.Sprintf(`{"state_digest":%q,"confirmed_by":"human"}`, p.StateDigest)
+	h.ServeHTTP(cr, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+p.ID+"/confirm", strings.NewReader(body)))
+	if cr.Code != http.StatusOK {
+		t.Fatalf("confirm status=%d body=%s", cr.Code, cr.Body.String())
+	}
+	var confirmed struct {
+		Confirmation confirmation.Evidence `json:"confirmation"`
+	}
+	if err := json.Unmarshal(cr.Body.Bytes(), &confirmed); err != nil {
+		t.Fatalf("decode confirmation: %v", err)
+	}
+
+	change := httptest.NewRecorder()
+	h.ServeHTTP(change, httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=after-adventure&character=doncannoli&total_turns=1&ascension_turns=1&adventures=1&ascensions=1&breakfast=true", nil))
+	if change.Code != http.StatusOK {
+		t.Fatalf("change observation status=%d body=%s", change.Code, change.Body.String())
+	}
+
+	er := httptest.NewRecorder()
+	h.ServeHTTP(er, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+p.ID+"/execute", nil))
+	if er.Code != http.StatusConflict || !strings.Contains(er.Body.String(), "approval invalidated") {
+		t.Fatalf("execute status=%d body=%s", er.Code, er.Body.String())
+	}
+
+	recent := ledger.Recent(20)
+	var denied *audit.Event
+	for i := range recent {
+		if recent[i].ProposalID == p.ID && recent[i].Type == audit.EventProposalInvalidated {
+			denied = &recent[i]
+		}
+	}
+	if denied == nil {
+		t.Fatalf("missing proposal.invalidated event: %+v", recent)
+	}
+	if denied.Execution == nil || denied.ExecutionDigest == "" {
+		t.Fatalf("denial missing execution evidence: %+v", denied)
+	}
+	if err := execution.Verify(*denied.Execution); err != nil {
+		t.Fatalf("execution evidence verify: %v", err)
+	}
+	if denied.Execution.GateDecision != execution.GateDenied {
+		t.Fatalf("gate decision=%q want=%q", denied.Execution.GateDecision, execution.GateDenied)
+	}
+	if denied.Execution.ConfirmationDigest != confirmed.Confirmation.Digest {
+		t.Fatalf("confirmation digest=%q want=%q", denied.Execution.ConfirmationDigest, confirmed.Confirmation.Digest)
+	}
+	if denied.Execution.ProposalStateDigest == denied.Execution.CurrentStateDigest {
+		t.Fatalf("expected changed state digests, got %+v", denied.Execution)
 	}
 }
