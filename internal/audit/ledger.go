@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
 )
 
 const MaxRecent = 100
@@ -35,8 +37,10 @@ type Event struct {
 	ProposalID      string    `json:"proposal_id,omitempty"`
 	RuntimeID       string    `json:"runtime_id,omitempty"`
 	ObservationID   string    `json:"observation_id,omitempty"`
-	AdmissionDigest string    `json:"admission_digest,omitempty"`
-	Operation       string    `json:"operation,omitempty"`
+	AdmissionDigest    string                 `json:"admission_digest,omitempty"`
+	ConfirmationDigest string                 `json:"confirmation_digest,omitempty"`
+	Confirmation       *confirmation.Evidence `json:"confirmation,omitempty"`
+	Operation          string    `json:"operation,omitempty"`
 	StateDigest     string    `json:"state_digest,omitempty"`
 	Actor           string    `json:"actor,omitempty"`
 	Result          string    `json:"result,omitempty"`

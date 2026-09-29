@@ -71,8 +71,9 @@ type Receipt struct {
 	ProposalID      string    `json:"proposal_id"`
 	RuntimeID       string    `json:"runtime_id"`
 	ObservationID   string    `json:"observation_id,omitempty"`
-	AdmissionDigest string    `json:"admission_digest,omitempty"`
-	Operation       string    `json:"operation"`
+	AdmissionDigest    string    `json:"admission_digest,omitempty"`
+	ConfirmationDigest string    `json:"confirmation_digest,omitempty"`
+	Operation          string    `json:"operation"`
 	Success         bool      `json:"success"`
 	Detail          string    `json:"detail"`
 	ArtifactPath    string    `json:"artifact_path,omitempty"`

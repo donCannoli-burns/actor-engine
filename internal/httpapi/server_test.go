@@ -16,6 +16,7 @@ import (
 
 	"github.com/donCannoli-burns/actor-engine/internal/admission"
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
+	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
@@ -133,6 +134,26 @@ func TestReleaseStageFlow(t *testing.T) {
 	if confirmRR.Code != http.StatusOK {
 		t.Fatalf("confirm proposal status = %d, want %d; body=%s", confirmRR.Code, http.StatusOK, confirmRR.Body.String())
 	}
+	var confirmed struct {
+		Confirmed    bool                  `json:"confirmed"`
+		Proposal     protocol.Proposal     `json:"proposal"`
+		Confirmation confirmation.Evidence `json:"confirmation"`
+	}
+	if err := json.Unmarshal(confirmRR.Body.Bytes(), &confirmed); err != nil {
+		t.Fatalf("decode confirm response: %v", err)
+	}
+	if !confirmed.Confirmed {
+		t.Fatal("confirmed = false, want true")
+	}
+	if err := confirmation.Matches(confirmed.Confirmation, proposal.ID, proposal.StateDigest, proposal.Admission.Digest, proposal.RuntimeID); err != nil {
+		t.Fatalf("confirmation evidence mismatch: %v", err)
+	}
+	if confirmed.Confirmation.ConfirmedBy != "test-human" {
+		t.Fatalf("confirmation actor = %q, want test-human", confirmed.Confirmation.ConfirmedBy)
+	}
+	if confirmed.Confirmation.EvidenceGrantsAuthority || confirmed.Confirmation.AuthorityRestorable {
+		t.Fatalf("confirmation evidence authority flags = %+v", confirmed.Confirmation)
+	}
 
 	executeRR := httptest.NewRecorder()
 	h.ServeHTTP(executeRR, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+proposal.ID+"/execute", nil))
@@ -154,6 +175,9 @@ func TestReleaseStageFlow(t *testing.T) {
 	}
 	if receipt.AdmissionDigest != proposal.Admission.Digest {
 		t.Fatalf("receipt admission digest = %q, want %q", receipt.AdmissionDigest, proposal.Admission.Digest)
+	}
+	if receipt.ConfirmationDigest != confirmed.Confirmation.Digest {
+		t.Fatalf("receipt confirmation digest = %q, want %q", receipt.ConfirmationDigest, confirmed.Confirmation.Digest)
 	}
 	got, err := os.ReadFile(filepath.Join(stageDir, "KoLmafia-29309.jar"))
 	if err != nil {
@@ -190,6 +214,17 @@ func TestReleaseStageFlow(t *testing.T) {
 		}
 		if auditOut.Events[i].AdmissionDigest != proposal.Admission.Digest {
 			t.Fatalf("audit event[%d].AdmissionDigest = %q, want %q", i, auditOut.Events[i].AdmissionDigest, proposal.Admission.Digest)
+		}
+		if i >= 1 && auditOut.Events[i].ConfirmationDigest != confirmed.Confirmation.Digest {
+			t.Fatalf("audit event[%d].ConfirmationDigest = %q, want %q", i, auditOut.Events[i].ConfirmationDigest, confirmed.Confirmation.Digest)
+		}
+		if i == 1 {
+			if auditOut.Events[i].Confirmation == nil {
+				t.Fatal("proposal.confirmed audit event missing confirmation evidence")
+			}
+			if err := confirmation.Verify(*auditOut.Events[i].Confirmation); err != nil {
+				t.Fatalf("durable confirmation evidence invalid: %v", err)
+			}
 		}
 	}
 }
@@ -386,5 +421,69 @@ func TestProposalAdmissionRejectsNotReadyPreflight(t *testing.T) {
 	}
 	if got := s.plane.Snapshot(); slices.Contains(got, stateplane.StateAwaitingConfirmation) || slices.Contains(got, stateplane.StateProposalReady) {
 		t.Fatalf("admission denial changed proposal state: %v", got)
+	}
+}
+
+
+func TestDurableConfirmationEvidenceDoesNotRestoreAuthority(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	ledger, err := audit.Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	evidence, err := confirmation.Bind(confirmation.Input{
+		ProposalID:      "p-confirmed-history",
+		StateDigest:     "state-history",
+		AdmissionDigest: "sha256:admission-history",
+		ConfirmedBy:     "human-history",
+		RuntimeID:       "run-origin",
+		ConfirmedAt:     time.Date(2026, 9, 29, 19, 30, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("confirmation.Bind() error = %v", err)
+	}
+	if _, err := ledger.Append(audit.Event{
+		Type:               audit.EventProposalConfirmed,
+		ProposalID:         evidence.ProposalID,
+		RuntimeID:          evidence.RuntimeID,
+		AdmissionDigest:    evidence.AdmissionDigest,
+		ConfirmationDigest: evidence.Digest,
+		Confirmation:       &evidence,
+		StateDigest:        evidence.StateDigest,
+		Actor:              evidence.ConfirmedBy,
+		Result:             "confirmed",
+	}); err != nil {
+		t.Fatalf("append durable confirmation evidence: %v", err)
+	}
+
+	reopened, err := audit.Open(path)
+	if err != nil {
+		t.Fatalf("reopen audit ledger: %v", err)
+	}
+	recent := reopened.Recent(10)
+	if len(recent) != 1 || recent[0].Confirmation == nil {
+		t.Fatalf("reopened confirmation evidence = %+v", recent)
+	}
+	if err := confirmation.Verify(*recent[0].Confirmation); err != nil {
+		t.Fatalf("reopened confirmation evidence invalid: %v", err)
+	}
+
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		reopened,
+		"run-after-restart",
+	)
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+evidence.ProposalID+"/execute", nil))
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("execute after restart status = %d, want %d; body=%s", rr.Code, http.StatusConflict, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "proposal not found") {
+		t.Fatalf("execute after restart body = %q, want proposal not found", rr.Body.String())
 	}
 }
