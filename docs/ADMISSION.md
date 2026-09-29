@@ -1,6 +1,6 @@
 # Proposal admission / preflight binding
 
-Status: **v0.5.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.5.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.4.0** at `4aa5cb1cd72d9c8356b242ce4b7b8b5c68eddd25`  
 Authority change: **none**
 
@@ -108,9 +108,9 @@ A valid admission:
 - does not bypass state-digest invalidation;
 - does not authorize release installation, KoLmafia restart, arbitrary ASH/gCLI, or live game mutation.
 
-## Acceptance target
+## Acceptance result
 
-The interactive harness must prove:
+The interactive harness proved:
 
 1. a fresh runtime with NOT_READY preflight cannot create a proposal;
 2. the denial returns the exact machine-readable preflight report;
@@ -126,3 +126,27 @@ The interactive harness must prove:
 12. Actor Engine restart removes the ephemeral proposal while historical admission evidence remains.
 
 The harness never confirms the test proposal.
+
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST`  
+**Exact tested repository HEAD:** `19a43a36ab53367b8985de835f0e5cb893e060c3`  
+**Runtime before restart:** `run-29392a3578b6434c8eccf47f4204936e`  
+**Runtime after restart:** `run-e5a33878b1316683899cb43a3fe2246e`  
+**Test proposal:** `p-1c0b069655cda0e75d6af5d3`  
+**Admission digest:** `sha256:f4c40c0010126f8803bf27d4bc64eee01e5789a8f9a557b66702f3b8013ee2bb`  
+**Authority expansion:** none
+
+Observed terminal result:
+
+```text
+PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST
+NOT_READY preflight could not form a proposal.
+READY proposal admission carried an independently verified canonical digest and exact checkset.
+Admission evidence propagated into durable audit history.
+The test proposal was never confirmed or successfully executed.
+Admission did not restore authority after restart.
+```
+
+The human explicitly approved the negative execution probe. It returned HTTP 409 because the proposal was not confirmed. The confirmation endpoint was never called, no release staging succeeded, and Actor Engine restart removed the proposal authority while the historical admission evidence remained in the durable ledger.

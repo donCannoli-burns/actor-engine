@@ -330,3 +330,56 @@ Repeated preflight reads appended no audit evidence.
 The test proposal was never confirmed or successfully executed.
 READY never granted execution authority.
 ```
+
+
+## v0.5.0 live acceptance — proposal admission / preflight binding
+
+**Status:** `PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST`  
+**Date:** 2026-09-29  
+**Exact tested repository HEAD:** `19a43a36ab53367b8985de835f0e5cb893e060c3`  
+**Authority expansion:** none
+
+The real runtime verified that proposal formation is bound to a READY preflight without turning readiness into confirmation or execution authority.
+
+Observed sequence:
+
+```text
+NOT_READY preflight
+    -> proposal refused with HTTP 409
+    -> no proposal.created audit evidence
+
+fresh dependency evidence + human kol_actor sync
+    -> READY
+
+READY
+    -> proposal created
+    -> exact preflight embedded as kol-actor/admission-v1
+    -> canonical SHA-256 independently recomputed
+    -> same admission digest persisted in proposal.created audit evidence
+
+unconfirmed execute probe
+    -> HTTP 409
+    -> proposal is not confirmed
+
+Actor Engine restart
+    -> prior proposal authority absent
+    -> historical admission evidence still present
+```
+
+Observed proposal: `p-1c0b069655cda0e75d6af5d3`  
+Observed admission digest: `sha256:f4c40c0010126f8803bf27d4bc64eee01e5789a8f9a557b66702f3b8013ee2bb`  
+Runtime before restart: `run-29392a3578b6434c8eccf47f4204936e`  
+Runtime after restart: `run-e5a33878b1316683899cb43a3fe2246e`
+
+The test never called the confirmation endpoint and never successfully executed `release.stage`.
+
+Observed terminal result:
+
+```text
+PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST
+NOT_READY preflight could not form a proposal.
+READY proposal admission carried an independently verified canonical digest and exact checkset.
+Admission evidence propagated into durable audit history.
+The test proposal was never confirmed or successfully executed.
+Admission did not restore authority after restart.
+```

@@ -49,7 +49,7 @@ Freshness windows in the first contract are:
 
 See [`PREFLIGHT.md`](PREFLIGHT.md).
 
-## v0.5 development proposal admission
+## Verified v0.5.0 proposal admission
 
 `POST /v1/proposals/release-stage` now requires a current `READY` result from the verified preflight contract.
 

@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.5.0-dev
+# Actor Engine — KoL actor runtime prototype v0.5.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -123,7 +123,7 @@ Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](te
 
 Observed live result: `PASS LIVE_READ_ONLY_PREFLIGHT_TEST`. The harness proved NOT_READY → READY → NOT_READY → READY across evidence and proposal-gate changes, repeated preflight reads appended no audit evidence, the test proposal was never confirmed or successfully executed, and READY never granted execution authority.
 
-## v0.5 development — proposal admission / preflight binding
+## Verified v0.5.0 checkpoint — proposal admission / preflight binding
 
 The next bounded layer turns verified v0.4 readiness into **proposal admission evidence**, without turning readiness into authority.
 
@@ -162,6 +162,8 @@ A NOT_READY preflight returns HTTP 409 with `error: preflight_not_ready` and the
 Design: [`docs/ADMISSION.md`](docs/ADMISSION.md)  
 Acceptance harness: [`tests/live/v0.5-admission/proposal-admission-binding-test.sh`](tests/live/v0.5-admission/proposal-admission-binding-test.sh)
 
+Observed live result: `PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST`. The real runtime proved NOT_READY proposal refusal, independently recomputable READY admission evidence, audit propagation of the admission digest, rejection of an unconfirmed execute with HTTP 409, and loss of proposal authority across Actor Engine restart while historical admission evidence remained.
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;
@@ -177,7 +179,7 @@ Acceptance harness: [`tests/live/v0.5-admission/proposal-admission-binding-test.
 
 ## Authority boundary
 
-### Live-validated through v0.4.0
+### Live-validated through v0.5.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -197,7 +199,7 @@ Acceptance harness: [`tests/live/v0.5-admission/proposal-admission-binding-test.
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed through v0.4.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed through v0.5.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 
