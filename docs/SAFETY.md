@@ -32,3 +32,9 @@ The v0.6 confirmation layer completes provenance through the human boundary with
 21. **Execution provenance is chained, not substitutive.** Admission and confirmation digests are inputs to execution-attempt evidence, but none of those evidence objects can replace the in-memory gate checks.
 
 The v0.7 execution layer adds boundary provenance, not capability.
+22. **Terminal evidence is not authority.** A reconciliation object records what happened after an authorized attempt; it cannot authorize another attempt.
+23. **Committed-artifact state is explicit.** Failure reconciliation must never claim an artifact was committed, and success evidence must bind the actual artifact path/hash when one exists.
+24. **Terminal evidence is fail-closed.** If reconciliation provenance cannot be constructed before terminal audit commit, a successful staged artifact is removed rather than returned without provenance.
+25. **Bad-digest acceptance is isolated.** The v0.8 live harness uses a temporary stage directory and a local fixture release server; it never points the acceptance execution at the real runtime staging directory.
+
+The v0.8 reconciliation layer adds provenance, not capability.

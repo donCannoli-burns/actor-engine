@@ -23,6 +23,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
+	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
@@ -87,7 +88,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.7.0",
+		"version":                    "0.8.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
@@ -530,6 +531,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			receipt = failedReceipt(p, stageErr)
 			receipt.ConfirmationDigest = confirmationEvidence.Digest
 			receipt.ExecutionDigest = executionEvidence.Digest
+			receipt.SHA256 = sum
 			break
 		}
 		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, AdmissionDigest: p.Admission.Digest, ConfirmationDigest: confirmationEvidence.Digest, ExecutionDigest: executionEvidence.Digest, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
@@ -539,6 +541,34 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		receipt.ExecutionDigest = executionEvidence.Digest
 	}
 
+	reconciliationEvidence, reconErr := reconciliation.Bind(reconciliation.Input{
+		ProposalID:         p.ID,
+		Operation:          p.Operation,
+		AdmissionDigest:    p.Admission.Digest,
+		ConfirmationDigest: confirmationEvidence.Digest,
+		ExecutionDigest:    executionEvidence.Digest,
+		RuntimeID:          s.runtimeID,
+		ObservationID:      p.ObservationID,
+		Success:            receipt.Success,
+		Detail:             receipt.Detail,
+		ArtifactPath:       receipt.ArtifactPath,
+		SHA256:             receipt.SHA256,
+		CompletedAt:        receipt.CompletedAt,
+		ArtifactCommitted:  receipt.Success && receipt.ArtifactPath != "",
+	})
+	if reconErr != nil {
+		if receipt.Success && receipt.ArtifactPath != "" {
+			_ = os.Remove(receipt.ArtifactPath)
+		}
+		s.clearPending(p.ID)
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		s.setFault(fmt.Errorf("reconciliation provenance: %w", reconErr))
+		http.Error(w, "reconciliation provenance unavailable; terminal result refused", http.StatusServiceUnavailable)
+		return
+	}
+	receipt.ReconciliationDigest = reconciliationEvidence.Digest
+	receipt.Reconciliation = reconciliationEvidence
+
 	terminalType := audit.EventExecutionFailed
 	result := "failed"
 	if receipt.Success {
@@ -546,17 +576,19 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		result = "success"
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:               terminalType,
-		ProposalID:         p.ID,
-		Operation:          p.Operation,
-		StateDigest:        p.StateDigest,
-		AdmissionDigest:    p.Admission.Digest,
-		ConfirmationDigest: confirmationEvidence.Digest,
-		ExecutionDigest:    executionEvidence.Digest,
-		Result:             result,
-		Detail:             receipt.Detail,
-		ArtifactPath:       receipt.ArtifactPath,
-		SHA256:             receipt.SHA256,
+		Type:                 terminalType,
+		ProposalID:           p.ID,
+		Operation:            p.Operation,
+		StateDigest:          p.StateDigest,
+		AdmissionDigest:      p.Admission.Digest,
+		ConfirmationDigest:   confirmationEvidence.Digest,
+		ExecutionDigest:      executionEvidence.Digest,
+		ReconciliationDigest: reconciliationEvidence.Digest,
+		Reconciliation:       &reconciliationEvidence,
+		Result:               result,
+		Detail:               receipt.Detail,
+		ArtifactPath:         receipt.ArtifactPath,
+		SHA256:               receipt.SHA256,
 	})); auditErr != nil {
 		rollbackDetail := ""
 		if receipt.Success && receipt.ArtifactPath != "" {

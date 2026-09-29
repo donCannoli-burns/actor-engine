@@ -130,3 +130,15 @@ Execution-boundary records can now carry:
 The full object appears on the first durable record that captures the gate decision: `execution.started` after a successful consume or the relevant denial/invalidation record after a failed consume with known confirmation context. Later terminal records and receipts reference it by digest.
 
 A denied attempt is evidence that the boundary was reached and refused. It is not a receipt for an operation and does not imply that operation code ran.
+
+
+## v0.8 development — terminal reconciliation evidence
+
+Terminal execution records can carry:
+
+- `reconciliation_digest`;
+- a full `kol-actor/reconciliation-v1` object.
+
+The object is written only on `execution.succeeded` or `execution.failed`. It binds the prior execution digest to the terminal result and artifact state. A failed digest verification therefore records failure provenance while keeping `artifact_committed=false`.
+
+Historical reconciliation records remain evidence only and are never loaded into the in-memory proposal/confirmation gate.

@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.7.0
+# Actor Engine — KoL actor runtime prototype v0.8.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -258,6 +258,35 @@ Design: [`docs/EXECUTION.md`](docs/EXECUTION.md)
 Acceptance harness: [`tests/live/v0.7-execution/execution-attempt-provenance-test.sh`](tests/live/v0.7-execution/execution-attempt-provenance-test.sh)
 
 Observed live result: `PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST`. The real runtime proved a confirmed stale proposal was denied before operation start, the denial carried independently verifiable execution-attempt provenance, no `execution.started` or `execution.succeeded` record existed for the test proposal, the denial burned proposal authority, and the execution-attempt evidence survived Actor Engine restart without restoring authority.
+
+## v0.8 development — terminal receipt / reconciliation provenance
+
+The next bounded layer makes the **terminal result** of an authorized execution attempt independently verifiable without adding a new operation or authority.
+
+```text
+execution attempt
+    ↓
+operation result
+    ↓
+reconciliation.version = kol-actor/reconciliation-v1
+reconciliation.digest  = SHA-256(canonical terminal payload)
+    ↓
+terminal audit evidence
+    ↓
+receipt
+```
+
+The evidence binds the proposal, operation, admission digest, confirmation digest, execution digest, runtime/observation identity, terminal success/failure, detail, artifact path/hash, completion time, and whether an artifact was actually committed. It explicitly records:
+
+```text
+evidence_grants_authority = false
+authority_restorable      = false
+```
+
+The live acceptance path uses an **isolated Actor Engine process and a local fixture release server with an intentionally wrong SHA-256**. It therefore reaches `execution.started` and `execution.failed` while proving temporary staging cleanup and **no committed staged artifact**.
+
+Design: [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md)  
+Acceptance harness: [`tests/live/v0.8-reconciliation/terminal-reconciliation-provenance-test.sh`](tests/live/v0.8-reconciliation/terminal-reconciliation-provenance-test.sh)
 
 ## What this prototype does
 
