@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.7.0-dev
+# Actor Engine — KoL actor runtime prototype v0.7.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -209,7 +209,7 @@ Acceptance harness: [`tests/live/v0.6-confirmation/confirmation-provenance-bindi
 
 Observed live result: `PASS LIVE_CONFIRMATION_PROVENANCE_BINDING_TEST`. Human confirmation produced independently verifiable first-class evidence; the evidence bound proposal, state, admission, human, runtime, and timestamp; the confirmed proposal was never executed while approval was live; and durable confirmation evidence survived Actor Engine restart without restoring permission.
 
-## v0.7 development — execution-attempt provenance
+## Verified v0.7.0 checkpoint — execution-attempt provenance
 
 The next bounded layer records the **attempt to cross the execution boundary** as first-class evidence without adding an operation or authority.
 
@@ -257,6 +257,8 @@ no execution.started / no release.stage success
 Design: [`docs/EXECUTION.md`](docs/EXECUTION.md)  
 Acceptance harness: [`tests/live/v0.7-execution/execution-attempt-provenance-test.sh`](tests/live/v0.7-execution/execution-attempt-provenance-test.sh)
 
+Observed live result: `PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST`. The real runtime proved a confirmed stale proposal was denied before operation start, the denial carried independently verifiable execution-attempt provenance, no `execution.started` or `execution.succeeded` record existed for the test proposal, the denial burned proposal authority, and the execution-attempt evidence survived Actor Engine restart without restoring authority.
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;
@@ -272,7 +274,7 @@ Acceptance harness: [`tests/live/v0.7-execution/execution-attempt-provenance-tes
 
 ## Authority boundary
 
-### Live-validated through v0.6.0
+### Live-validated through v0.7.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -292,7 +294,7 @@ Acceptance harness: [`tests/live/v0.7-execution/execution-attempt-provenance-tes
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed through v0.6.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed through v0.7.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 

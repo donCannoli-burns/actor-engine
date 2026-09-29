@@ -95,7 +95,7 @@ The durable `proposal.confirmed` audit record stores the full evidence object pl
 
 See [`CONFIRMATION.md`](CONFIRMATION.md).
 
-## v0.7 development execution-attempt provenance
+## Verified v0.7.0 execution-attempt provenance
 
 When an execute request has a known proposal and confirmation context, Actor Engine binds the attempt into `kol-actor/execution-attempt-v1`.
 

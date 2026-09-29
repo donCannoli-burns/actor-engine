@@ -1,6 +1,6 @@
 # Execution-attempt provenance
 
-Status: **v0.7.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.7.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.6.0** at `f749ba14049b23bf82a4085f6727737758406f9f`  
 Authority change: **none**
 
@@ -90,9 +90,9 @@ no execution.started
 no operation success
 ```
 
-## Acceptance target
+## Acceptance result
 
-The interactive harness must prove:
+The interactive harness proved:
 
 - the proposal is admitted under READY preflight;
 - confirmation evidence is present;
@@ -109,3 +109,20 @@ The interactive harness must prove:
 - after optional Actor Engine restart, historical execution evidence remains evidence only.
 
 No successful `release.stage` is accepted by this harness.
+
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_EXECUTION_ATTEMPT_PROVENANCE_TEST`  
+**Exact tested repository HEAD:** `e55ddaab5043ada94628eb5016d4050a9eff9feb`  
+**Authority expansion:** none
+
+Observed test proposal: `p-373f6a30be38f2bd4c37bcd2`.
+
+The live run established a fresh READY proposal, explicitly confirmed it, changed only the bounded observation via human-run `kol_actor turn`, and then attempted the now-stale proposal. Execution returned HTTP 409:
+
+```text
+state changed after confirmation; approval invalidated
+```
+
+The denial carried a valid `kol-actor/execution-attempt-v1` object. Independent recomputation matched its digest. No `execution.started` or `execution.succeeded` record existed for the proposal, retry returned `proposal not found`, and after Actor Engine restart the historical execution-attempt evidence remained readable without restoring authority.
