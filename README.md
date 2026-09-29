@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.2.0
+# Actor Engine — KoL actor runtime prototype v0.3.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -70,6 +70,25 @@ With the tested runtime layout it defaults to `~/.kolmafia/kolmaf-ai/actor-engin
 Authority-bearing paths also fail closed if required audit evidence cannot be durably appended. See [`docs/AUDIT-LEDGER.md`](docs/AUDIT-LEDGER.md).
 
 Live harness: [`tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh`](tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh). Observed terminal result: `PASS LIVE_LEDGER_RESTART_AUTHORITY_TEST`.
+
+
+## v0.3 development — runtime / observation identity
+
+The next bounded layer adds identity to evidence without adding authority:
+
+```text
+runtime_id      = one Actor Engine process lifetime
+observation_id  = deterministic identity of the bounded KoL observation payload
+```
+
+A fresh Actor Engine start receives a new cryptographically random `runtime_id`. A KoL observation receives an `observation_id` derived from the sorted, length-prefixed bounded observation fields. Identical observation content therefore produces the same observation identity even across different Actor Engine runtimes.
+
+These IDs are **not credentials, capabilities, or permission tokens**. They are provenance primitives. Proposals, receipts, and audit events carry the runtime/observation identity that produced them so humans and agents can distinguish “same observed facts” from “same process lifetime.”
+
+This feature remains `v0.3.0-dev` until its live harness passes on the real runtime.
+
+Design: [`docs/IDENTITY.md`](docs/IDENTITY.md)  
+Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test.sh`](tests/live/v0.3-identity/runtime-observation-identity-test.sh)
 
 ## What this prototype does
 

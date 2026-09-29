@@ -16,6 +16,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/httpapi"
+	"github.com/donCannoli-burns/actor-engine/internal/identity"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
 	"github.com/donCannoli-burns/actor-engine/internal/kolstate"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
@@ -46,20 +47,25 @@ func run() error {
 
 	plane := stateplane.New(stateplane.StateBooting, stateplane.StateObserveOnly)
 	g := gate.New()
+	runtimeID, err := identity.NewRuntimeID()
+	if err != nil {
+		return err
+	}
 	ledger, err := audit.Open(cfg.auditLog)
 	if err != nil {
 		return fmt.Errorf("open audit ledger: %w", err)
 	}
 	if _, err := ledger.Append(audit.Event{
-		Type:   audit.EventRuntimeStarted,
-		Result: "ok",
-		Detail: "process started; durable evidence loaded; proposal and confirmation authority not restored",
+		Type:      audit.EventRuntimeStarted,
+		RuntimeID: runtimeID,
+		Result:    "ok",
+		Detail:    "process started; durable evidence loaded; proposal and confirmation authority not restored",
 	}); err != nil {
 		return fmt.Errorf("record runtime start: %w", err)
 	}
 	releases := release.NewClient(cfg.latestRelease)
 	kingdom := kingdomsitter.NewClient(cfg.kingdomsitter)
-	api := httpapi.New(plane, g, releases, kingdom, cfg.stageDir, ledger)
+	api := httpapi.New(plane, g, releases, kingdom, cfg.stageDir, ledger, runtimeID)
 	if cfg.jarPath != "" {
 		rev, err := kolstate.InstalledRevision(cfg.jarPath)
 		if err != nil {

@@ -1,0 +1,9 @@
+LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST
+status: acceptance pending
+development_version: 0.3.0-dev
+verified_base_commit: a6b1ee03be11fe716b2a30059e15701865a12d88
+runtime_id: run- + 32 lowercase hex; new per Actor Engine process
+observation_id: obs- + sha256(sorted length-prefixed bounded KoL observation)
+must_prove: deterministic observation identity; runtime change across restart; proposal/audit provenance binding; old proposal authority absent
+must_not: confirm release.stage; successfully execute release.stage; install release; restart KoLmafia; automate arbitrary gCLI; mutate live KoL state
+human_boundaries: kol_actor sync; kol_actor turn observation event; Actor Engine restart

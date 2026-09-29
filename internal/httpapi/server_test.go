@@ -65,8 +65,25 @@ func TestReleaseStageFlow(t *testing.T) {
 		kingdomsitter.NewClient(upstream.URL),
 		stageDir,
 		ledger,
+		"run-test-release",
 	)
 	h := s.Handler()
+
+	observeRR := httptest.NewRecorder()
+	h.ServeHTTP(observeRR, httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=manual&character=doncannoli&total_turns=522711&ascension_turns=20439&adventures=219&ascensions=349&breakfast=true", nil))
+	if observeRR.Code != http.StatusOK {
+		t.Fatalf("observe status = %d, want %d; body=%s", observeRR.Code, http.StatusOK, observeRR.Body.String())
+	}
+	var observed struct {
+		RuntimeID     string `json:"runtime_id"`
+		ObservationID string `json:"observation_id"`
+	}
+	if err := json.Unmarshal(observeRR.Body.Bytes(), &observed); err != nil {
+		t.Fatalf("decode observe response: %v", err)
+	}
+	if observed.RuntimeID != "run-test-release" || observed.ObservationID == "" {
+		t.Fatalf("observe identity = %+v", observed)
+	}
 
 	refresh := httptest.NewRecorder()
 	h.ServeHTTP(refresh, httptest.NewRequest(http.MethodPost, "/v1/release/refresh", nil))
@@ -82,6 +99,9 @@ func TestReleaseStageFlow(t *testing.T) {
 	var proposal protocol.Proposal
 	if err := json.Unmarshal(proposalRR.Body.Bytes(), &proposal); err != nil {
 		t.Fatalf("decode proposal: %v", err)
+	}
+	if proposal.RuntimeID != observed.RuntimeID || proposal.ObservationID != observed.ObservationID {
+		t.Fatalf("proposal identity = runtime %q observation %q, want %q %q", proposal.RuntimeID, proposal.ObservationID, observed.RuntimeID, observed.ObservationID)
 	}
 
 	confirmBody := fmt.Sprintf(`{"state_digest":%q,"confirmed_by":"test-human"}`, proposal.StateDigest)
@@ -105,6 +125,9 @@ func TestReleaseStageFlow(t *testing.T) {
 	}
 	if receipt.SHA256 != digest {
 		t.Fatalf("receipt.SHA256 = %q, want %q", receipt.SHA256, digest)
+	}
+	if receipt.RuntimeID != proposal.RuntimeID || receipt.ObservationID != proposal.ObservationID {
+		t.Fatalf("receipt identity = runtime %q observation %q, want %q %q", receipt.RuntimeID, receipt.ObservationID, proposal.RuntimeID, proposal.ObservationID)
 	}
 	got, err := os.ReadFile(filepath.Join(stageDir, "KoLmafia-29309.jar"))
 	if err != nil {
@@ -132,6 +155,12 @@ func TestReleaseStageFlow(t *testing.T) {
 	for i, want := range wantTypes {
 		if auditOut.Events[i].Type != want {
 			t.Fatalf("audit event[%d].Type = %q, want %q", i, auditOut.Events[i].Type, want)
+		}
+		if auditOut.Events[i].RuntimeID != proposal.RuntimeID {
+			t.Fatalf("audit event[%d].RuntimeID = %q, want %q", i, auditOut.Events[i].RuntimeID, proposal.RuntimeID)
+		}
+		if auditOut.Events[i].ObservationID != proposal.ObservationID {
+			t.Fatalf("audit event[%d].ObservationID = %q, want %q", i, auditOut.Events[i].ObservationID, proposal.ObservationID)
 		}
 	}
 }
@@ -162,6 +191,7 @@ func TestAuditHistoryDoesNotRestoreAuthority(t *testing.T) {
 		kingdomsitter.NewClient("http://127.0.0.1:1"),
 		t.TempDir(),
 		reopened,
+		"run-restarted",
 	)
 
 	rr := httptest.NewRecorder()
@@ -175,5 +205,8 @@ func TestAuditHistoryDoesNotRestoreAuthority(t *testing.T) {
 	recent := reopened.Recent(10)
 	if recent[len(recent)-1].Type != audit.EventExecutionDenied {
 		t.Fatalf("last audit event = %q, want %q", recent[len(recent)-1].Type, audit.EventExecutionDenied)
+	}
+	if recent[len(recent)-1].RuntimeID != "run-restarted" {
+		t.Fatalf("last audit runtime id = %q, want run-restarted", recent[len(recent)-1].RuntimeID)
 	}
 }
