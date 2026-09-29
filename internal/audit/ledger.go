@@ -16,16 +16,16 @@ import (
 const MaxRecent = 100
 
 const (
-	EventRuntimeStarted       = "runtime.started"
-	EventProposalCreated      = "proposal.created"
-	EventProposalConfirmed    = "proposal.confirmed"
-	EventConfirmationDenied   = "proposal.confirmation_denied"
-	EventProposalInvalidated  = "proposal.invalidated"
-	EventProposalExpired      = "proposal.expired"
-	EventExecutionDenied      = "execution.denied"
-	EventExecutionStarted     = "execution.started"
-	EventExecutionSucceeded   = "execution.succeeded"
-	EventExecutionFailed      = "execution.failed"
+	EventRuntimeStarted      = "runtime.started"
+	EventProposalCreated     = "proposal.created"
+	EventProposalConfirmed   = "proposal.confirmed"
+	EventConfirmationDenied  = "proposal.confirmation_denied"
+	EventProposalInvalidated = "proposal.invalidated"
+	EventProposalExpired     = "proposal.expired"
+	EventExecutionDenied     = "execution.denied"
+	EventExecutionStarted    = "execution.started"
+	EventExecutionSucceeded  = "execution.succeeded"
+	EventExecutionFailed     = "execution.failed"
 )
 
 type Event struct {
