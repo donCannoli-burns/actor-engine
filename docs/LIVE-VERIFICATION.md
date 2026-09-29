@@ -453,3 +453,25 @@ The denial carried independently verifiable execution-attempt provenance.
 No execution.started or execution.succeeded record existed for the test proposal.
 The denial burned proposal authority; retry returned proposal not found.
 ```
+
+
+## v0.8.0 live acceptance — terminal reconciliation provenance
+
+**Status:** `PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST`  
+**Date:** 2026-09-29  
+**Exact tested repository HEAD:** `b11b94417bcbfec34d485d91de987c163c32ae8f`  
+**Authority expansion:** none
+
+The real acceptance campaign used a second isolated Actor Engine plus a local fixture release endpoint with an intentionally incorrect SHA-256. The normal Actor Engine remained outside the acceptance write path.
+
+The isolated confirmed proposal crossed the execution gate, emitted `execution.started`, failed digest verification, emitted `execution.failed`, returned a receipt carrying independently verifiable `kol-actor/reconciliation-v1` evidence, and left no committed fixture artifact or temporary part file.
+
+Observed terminal result:
+
+```text
+PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST
+The isolated authorized attempt reached execution.started and failed on the intentional digest mismatch.
+The terminal receipt carried independently verifiable reconciliation provenance.
+No fixture artifact or temporary part file remained committed.
+Durable reconciliation evidence survived isolated Actor Engine restart without restoring authority.
+```

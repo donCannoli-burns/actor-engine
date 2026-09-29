@@ -1,10 +1,13 @@
 LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST
-status: acceptance pending
-development_version: 0.8.0-dev
+status: PASS
+checkpoint: v0.8.0
+date: 2026-09-29
+tested_repository_head: b11b94417bcbfec34d485d91de987c163c32ae8f
 verified_base_commit: 41f9864d3aa2b0b0daf6b63dc4fe3da1b661e9c8
 reconciliation_version: kol-actor/reconciliation-v1
 digest: sha256(canonical sorted-key JSON reconciliation payload excluding digest)
-live_path: normal kol_actor sync -> isolated fixture sidecar -> READY -> confirm -> authorized execution -> intentional SHA-256 mismatch -> execution.failed -> reconciliation -> isolated restart
+live_path: normal kol_actor sync -> isolated fixture sidecar -> READY -> confirm -> authorized isolated execution -> intentional SHA-256 mismatch -> execution.failed -> reconciliation -> isolated restart
 must_prove: execution.started; execution.failed; no execution.succeeded; actual downloaded SHA retained; artifact_committed=false; no final or part file; independent reconciliation digest recomputation; durable terminal evidence; no restored authority
 must_not: use official release endpoint for acceptance execution; use real runtime stage directory; install release; restart KoLmafia; mutate live KoL state
 human_boundaries: kol_actor sync; isolated confirmation y/N; isolated fixture execute y/N
+result: PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST

@@ -1,6 +1,6 @@
 # Terminal receipt / reconciliation provenance
 
-Status: **v0.8.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.8.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.7.0** at `41f9864d3aa2b0b0daf6b63dc4fe3da1b661e9c8`  
 Authority change: **none**
 
@@ -103,7 +103,7 @@ It launches:
 
 The acceptance test treats a successful fixture stage as failure.
 
-## Acceptance target
+## Acceptance result
 
 ```text
 PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST
@@ -112,3 +112,34 @@ The terminal receipt carried independently verifiable reconciliation provenance.
 No fixture artifact or temporary part file remained committed.
 Durable reconciliation evidence survived isolated Actor Engine restart without restoring authority.
 ```
+
+
+## Live evidence checkpoint — 2026-09-29
+
+**Result:** `PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST`  
+**Exact tested repository HEAD:** `b11b94417bcbfec34d485d91de987c163c32ae8f`  
+**Authority expansion:** none
+
+The live campaign ran an isolated Actor Engine against a local bad-digest fixture release. The normal sidecar was used only for a fresh read-only KoL observation handoff.
+
+Observed path:
+
+```text
+execution.started
+    ↓
+intentional SHA-256 mismatch
+    ↓
+execution.failed
+    ↓
+kol-actor/reconciliation-v1
+    ↓
+no committed fixture artifact
+no .part-* file
+    ↓
+isolated Actor Engine restart
+    ↓
+reconciliation evidence survives
+authority does not
+```
+
+The terminal receipt's reconciliation digest was independently recomputed. Durable audit history linked the same execution digest through `execution.started` and `execution.failed`. After isolated restart, the historical reconciliation object remained readable and the old proposal was not executable.
