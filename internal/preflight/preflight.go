@@ -17,7 +17,7 @@ type Check struct {
 	OK            bool      `json:"ok"`
 	Required      bool      `json:"required"`
 	Detail        string    `json:"detail"`
-	ObservedAt    time.Time `json:"observed_at,omitempty"`
+	ObservedAt    *time.Time `json:"observed_at,omitempty"`
 	AgeSeconds    int64     `json:"age_seconds,omitempty"`
 	MaxAgeSeconds int64     `json:"max_age_seconds,omitempty"`
 }
@@ -96,7 +96,7 @@ func Build(in Input) Result {
 		OK:         observationPresent,
 		Required:   true,
 		Detail:     "bounded KoL observation and observation_id must be present",
-		ObservedAt: in.ObservationAt.UTC(),
+		ObservedAt: timePtr(in.ObservationAt),
 	}, "kol_observation_missing")
 	if observationPresent {
 		add(freshnessCheck("kol_observation_fresh", in.ObservationAt, now, ObservationMaxAge, true), "kol_observation_stale")
@@ -115,7 +115,7 @@ func Build(in Input) Result {
 		OK:         releasePresent,
 		Required:   true,
 		Detail:     fmt.Sprintf("latest release=%q", in.LatestRelease),
-		ObservedAt: in.ReleaseRefreshedAt.UTC(),
+		ObservedAt: timePtr(in.ReleaseRefreshedAt),
 	}, "release_metadata_missing")
 	if releasePresent {
 		add(freshnessCheck("release_metadata_fresh", in.ReleaseRefreshedAt, now, ReleaseMaxAge, true), "release_metadata_stale")
@@ -127,7 +127,7 @@ func Build(in Input) Result {
 		OK:         sidecarKnown,
 		Required:   true,
 		Detail:     "Kingdomsitter transport status must have been checked",
-		ObservedAt: in.KingdomsitterCheckedAt.UTC(),
+		ObservedAt: timePtr(in.KingdomsitterCheckedAt),
 	}, "kingdomsitter_status_unknown")
 	if sidecarKnown {
 		add(freshnessCheck("kingdomsitter_status_fresh", in.KingdomsitterCheckedAt, now, SidecarMaxAge, true), "kingdomsitter_status_stale")
@@ -205,7 +205,7 @@ func freshnessCheck(name string, observedAt, now time.Time, maxAge time.Duration
 		OK:            age <= maxAge,
 		Required:      required,
 		Detail:        fmt.Sprintf("age=%s max=%s", age.Round(time.Second), maxAge),
-		ObservedAt:    observedAt.UTC(),
+		ObservedAt:    timePtr(observedAt),
 		AgeSeconds:    int64(age / time.Second),
 		MaxAgeSeconds: int64(maxAge / time.Second),
 	}
@@ -218,4 +218,12 @@ func hasState(states []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func timePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	u := t.UTC()
+	return &u
 }

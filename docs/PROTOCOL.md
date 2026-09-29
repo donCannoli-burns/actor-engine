@@ -8,6 +8,7 @@ Core endpoints:
 
 - `GET /health`
 - `GET /v1/state`
+- `GET /v1/preflight` — read-only readiness report; never grants authority
 - `GET /v1/audit/recent?limit=N`
 - `POST /v1/release/refresh`
 - `GET /v1/release/latest`
@@ -33,3 +34,17 @@ The verified v0.3.0 checkpoint adds two provenance fields to state/proposal/rece
 Neither field grants authority. Neither is accepted as confirmation. Neither restores a proposal after restart.
 
 See [`IDENTITY.md`](IDENTITY.md).
+
+## v0.4 development preflight
+
+`GET /v1/preflight` returns `kol-actor/preflight-v1`.
+
+The endpoint is intentionally observational: it performs no network refresh, writes no audit event, creates no proposal, changes no state-plane state, and grants no authority. A `READY` result means only that current evidence satisfies the configured proposal-formation checks.
+
+Freshness windows in the first contract are:
+
+- KoL observation: 5 minutes;
+- KoLmafia release metadata: 30 minutes;
+- Kingdomsitter status: 2 minutes.
+
+See [`PREFLIGHT.md`](PREFLIGHT.md).
