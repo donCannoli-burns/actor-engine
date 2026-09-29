@@ -25,22 +25,22 @@ import (
 )
 
 type Server struct {
-	mu          sync.RWMutex
-	plane       *stateplane.Plane
-	gate        *gate.Gate
-	releases    *release.Client
-	kingdom     *kingdomsitter.Client
-	stageDir    string
-	audit       *audit.Ledger
-	runtimeID            string
-	snapshot             protocol.Snapshot
-	latest               release.Info
-	observationAt         time.Time
-	releaseRefreshedAt    time.Time
+	mu                     sync.RWMutex
+	plane                  *stateplane.Plane
+	gate                   *gate.Gate
+	releases               *release.Client
+	kingdom                *kingdomsitter.Client
+	stageDir               string
+	audit                  *audit.Ledger
+	runtimeID              string
+	snapshot               protocol.Snapshot
+	latest                 release.Info
+	observationAt          time.Time
+	releaseRefreshedAt     time.Time
 	kingdomsitterCheckedAt time.Time
-	pending               *protocol.Proposal
-	lastReceipt           *protocol.Receipt
-	now                   func() time.Time
+	pending                *protocol.Proposal
+	lastReceipt            *protocol.Receipt
+	now                    func() time.Time
 }
 
 func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string, ledger *audit.Ledger, runtimeID string) *Server {
@@ -129,7 +129,6 @@ func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, preflight.Build(in))
 }
-
 
 func (s *Server) recentAudit(w http.ResponseWriter, r *http.Request) {
 	limit := 25

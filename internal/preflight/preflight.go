@@ -13,13 +13,13 @@ const (
 )
 
 type Check struct {
-	Name          string    `json:"name"`
-	OK            bool      `json:"ok"`
-	Required      bool      `json:"required"`
-	Detail        string    `json:"detail"`
+	Name          string     `json:"name"`
+	OK            bool       `json:"ok"`
+	Required      bool       `json:"required"`
+	Detail        string     `json:"detail"`
 	ObservedAt    *time.Time `json:"observed_at,omitempty"`
-	AgeSeconds    int64     `json:"age_seconds,omitempty"`
-	MaxAgeSeconds int64     `json:"max_age_seconds,omitempty"`
+	AgeSeconds    int64      `json:"age_seconds,omitempty"`
+	MaxAgeSeconds int64      `json:"max_age_seconds,omitempty"`
 }
 
 type AuthorityBoundary struct {
