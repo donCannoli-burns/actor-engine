@@ -300,13 +300,13 @@ func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.gate.Put(p)
 	if _, err := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventProposalCreated,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
+		Type:            audit.EventProposalCreated,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
 		StateDigest:     p.StateDigest,
 		AdmissionDigest: p.Admission.Digest,
 		Result:          "pending",
-		Detail:      p.HumanSummary,
+		Detail:          p.HumanSummary,
 	})); err != nil {
 		s.gate.Drop(p.ID)
 		s.setFault(fmt.Errorf("audit proposal creation: %w", err))
@@ -349,9 +349,9 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventProposalConfirmed,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
+		Type:            audit.EventProposalConfirmed,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
 		StateDigest:     p.StateDigest,
 		AdmissionDigest: p.Admission.Digest,
 		Actor:           confirmation.ConfirmedBy,
@@ -428,9 +428,9 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventExecutionStarted,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
+		Type:            audit.EventExecutionStarted,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
 		StateDigest:     p.StateDigest,
 		AdmissionDigest: p.Admission.Digest,
 		Result:          "started",
@@ -469,15 +469,15 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		result = "success"
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:         terminalType,
-		ProposalID:   p.ID,
-		Operation:    p.Operation,
+		Type:            terminalType,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
 		StateDigest:     p.StateDigest,
 		AdmissionDigest: p.Admission.Digest,
 		Result:          result,
-		Detail:       receipt.Detail,
-		ArtifactPath: receipt.ArtifactPath,
-		SHA256:       receipt.SHA256,
+		Detail:          receipt.Detail,
+		ArtifactPath:    receipt.ArtifactPath,
+		SHA256:          receipt.SHA256,
 	})); auditErr != nil {
 		rollbackDetail := ""
 		if receipt.Success && receipt.ArtifactPath != "" {

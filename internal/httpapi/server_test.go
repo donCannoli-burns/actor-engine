@@ -346,7 +346,6 @@ func TestPreflightIsReadOnlyAndFreshnessAware(t *testing.T) {
 	}
 }
 
-
 func TestProposalAdmissionRejectsNotReadyPreflight(t *testing.T) {
 	t.Parallel()
 	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
