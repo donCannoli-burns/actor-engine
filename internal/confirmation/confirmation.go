@@ -147,10 +147,22 @@ func Digest(e Evidence) (string, error) {
 		EvidenceGrantsAuthority: e.EvidenceGrantsAuthority,
 		AuthorityRestorable:     e.AuthorityRestorable,
 	}
-	raw, err := json.Marshal(payload)
+	raw, err := canonicalJSON(payload)
 	if err != nil {
 		return "", fmt.Errorf("canonicalize confirmation evidence: %w", err)
 	}
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func canonicalJSON(v any) ([]byte, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var generic any
+	if err := json.Unmarshal(raw, &generic); err != nil {
+		return nil, err
+	}
+	return json.Marshal(generic)
 }
