@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/donCannoli-burns/actor-engine/internal/admission"
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/identity"
@@ -26,6 +27,7 @@ import (
 
 type Server struct {
 	mu                     sync.RWMutex
+	proposalMu             sync.Mutex
 	plane                  *stateplane.Plane
 	gate                   *gate.Gate
 	releases               *release.Client
@@ -83,7 +85,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.4.0",
+		"version":                    "0.5.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
@@ -106,6 +108,12 @@ func (s *Server) state(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.preflightResult())
+}
+
+func (s *Server) preflightResult() preflight.Result {
+	auditVerified := s.audit.Status().Verified
+	activeStates := s.plane.Snapshot()
 	s.mu.RLock()
 	pendingID := ""
 	if s.pending != nil {
@@ -121,13 +129,13 @@ func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
 		ReleaseRefreshedAt:     s.releaseRefreshedAt,
 		KingdomsitterCheckedAt: s.kingdomsitterCheckedAt,
 		KingdomsitterHealthy:   s.snapshot.KingdomsitterHealthy,
-		AuditVerified:          s.audit.Status().Verified,
+		AuditVerified:          auditVerified,
 		Fault:                  s.snapshot.Fault,
 		PendingProposalID:      pendingID,
-		ActiveStates:           s.plane.Snapshot(),
+		ActiveStates:           activeStates,
 	}
 	s.mu.RUnlock()
-	writeJSON(w, http.StatusOK, preflight.Build(in))
+	return preflight.Build(in)
 }
 
 func (s *Server) recentAudit(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +242,23 @@ func (s *Server) ingestKoLState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
+	s.proposalMu.Lock()
+	defer s.proposalMu.Unlock()
+
+	report := s.preflightResult()
+	if !report.ReadyForProposal || report.Status != "READY" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":     "preflight_not_ready",
+			"preflight": report,
+		})
+		return
+	}
+	admissionEvidence, err := admission.Bind(report)
+	if err != nil {
+		http.Error(w, "proposal admission failed: "+err.Error(), http.StatusConflict)
+		return
+	}
+
 	var in struct {
 		Asset string `json:"asset"`
 	}
@@ -271,15 +296,17 @@ func (s *Server) proposeReleaseStage(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       time.Now().UTC().Add(10 * time.Minute),
 		HumanSummary:    fmt.Sprintf("Stage %s from %s into %s; this does not install or restart KoLmafia.", asset.Name, info.TagName, filepath.Clean(s.stageDir)),
 		RequiresConfirm: true,
+		Admission:       admissionEvidence,
 	}
 	s.gate.Put(p)
 	if _, err := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventProposalCreated,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
-		StateDigest: p.StateDigest,
-		Result:      "pending",
-		Detail:      p.HumanSummary,
+		Type:            audit.EventProposalCreated,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
+		StateDigest:     p.StateDigest,
+		AdmissionDigest: p.Admission.Digest,
+		Result:          "pending",
+		Detail:          p.HumanSummary,
 	})); err != nil {
 		s.gate.Drop(p.ID)
 		s.setFault(fmt.Errorf("audit proposal creation: %w", err))
@@ -322,12 +349,13 @@ func (s *Server) confirmProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventProposalConfirmed,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
-		StateDigest: p.StateDigest,
-		Actor:       confirmation.ConfirmedBy,
-		Result:      "confirmed",
+		Type:            audit.EventProposalConfirmed,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
+		StateDigest:     p.StateDigest,
+		AdmissionDigest: p.Admission.Digest,
+		Actor:           confirmation.ConfirmedBy,
+		Result:          "confirmed",
 	})); auditErr != nil {
 		s.gate.Drop(p.ID)
 		s.clearPending(p.ID)
@@ -379,12 +407,33 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := admission.Verify(p.Admission); err != nil {
+		if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
+			Type:            audit.EventExecutionDenied,
+			ProposalID:      p.ID,
+			Operation:       p.Operation,
+			StateDigest:     p.StateDigest,
+			AdmissionDigest: p.Admission.Digest,
+			Result:          "denied",
+			Detail:          "proposal admission invalid: " + err.Error(),
+		})); auditErr != nil {
+			s.setFault(fmt.Errorf("audit admission denial: %w", auditErr))
+			http.Error(w, "audit ledger unavailable; execution refused", http.StatusServiceUnavailable)
+			return
+		}
+		s.clearPending(p.ID)
+		s.plane.SetExclusive(stateplane.ProposalStates, "")
+		http.Error(w, "proposal admission invalid: "+err.Error(), http.StatusConflict)
+		return
+	}
+
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:        audit.EventExecutionStarted,
-		ProposalID:  p.ID,
-		Operation:   p.Operation,
-		StateDigest: p.StateDigest,
-		Result:      "started",
+		Type:            audit.EventExecutionStarted,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
+		StateDigest:     p.StateDigest,
+		AdmissionDigest: p.Admission.Digest,
+		Result:          "started",
 	})); auditErr != nil {
 		s.clearPending(p.ID)
 		s.plane.SetExclusive(stateplane.ProposalStates, "")
@@ -408,7 +457,7 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 			receipt = failedReceipt(p, stageErr)
 			break
 		}
-		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
+		receipt = protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, AdmissionDigest: p.Admission.Digest, Operation: p.Operation, Success: true, Detail: "release asset staged and digest checked when GitHub supplied one", ArtifactPath: path, SHA256: sum, CompletedAt: time.Now().UTC()}
 	default:
 		receipt = failedReceipt(p, fmt.Errorf("operation %q is not implemented", p.Operation))
 	}
@@ -420,14 +469,15 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		result = "success"
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:         terminalType,
-		ProposalID:   p.ID,
-		Operation:    p.Operation,
-		StateDigest:  p.StateDigest,
-		Result:       result,
-		Detail:       receipt.Detail,
-		ArtifactPath: receipt.ArtifactPath,
-		SHA256:       receipt.SHA256,
+		Type:            terminalType,
+		ProposalID:      p.ID,
+		Operation:       p.Operation,
+		StateDigest:     p.StateDigest,
+		AdmissionDigest: p.Admission.Digest,
+		Result:          result,
+		Detail:          receipt.Detail,
+		ArtifactPath:    receipt.ArtifactPath,
+		SHA256:          receipt.SHA256,
 	})); auditErr != nil {
 		rollbackDetail := ""
 		if receipt.Success && receipt.ArtifactPath != "" {
@@ -533,7 +583,7 @@ func normalizeRevision(value string) string {
 }
 
 func failedReceipt(p protocol.Proposal, err error) protocol.Receipt {
-	return protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, Operation: p.Operation, Success: false, Detail: err.Error(), CompletedAt: time.Now().UTC()}
+	return protocol.Receipt{ProposalID: p.ID, RuntimeID: p.RuntimeID, ObservationID: p.ObservationID, AdmissionDigest: p.Admission.Digest, Operation: p.Operation, Success: false, Detail: err.Error(), CompletedAt: time.Now().UTC()}
 }
 
 func errorText(err error) string {

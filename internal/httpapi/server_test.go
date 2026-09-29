@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/donCannoli-burns/actor-engine/internal/admission"
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
@@ -70,7 +71,14 @@ func TestReleaseStageFlow(t *testing.T) {
 		ledger,
 		"run-test-release",
 	)
+	s.SetInstalledRevision("29301")
 	h := s.Handler()
+
+	sidecarRR := httptest.NewRecorder()
+	h.ServeHTTP(sidecarRR, httptest.NewRequest(http.MethodGet, "/v1/kingdomsitter/refresh", nil))
+	if sidecarRR.Code != http.StatusOK {
+		t.Fatalf("sidecar refresh status = %d, want %d; body=%s", sidecarRR.Code, http.StatusOK, sidecarRR.Body.String())
+	}
 
 	observeRR := httptest.NewRecorder()
 	h.ServeHTTP(observeRR, httptest.NewRequest(http.MethodGet, "/v1/kolmafia/update?event=manual&character=doncannoli&total_turns=522711&ascension_turns=20439&adventures=219&ascensions=349&breakfast=true", nil))
@@ -106,6 +114,18 @@ func TestReleaseStageFlow(t *testing.T) {
 	if proposal.RuntimeID != observed.RuntimeID || proposal.ObservationID != observed.ObservationID {
 		t.Fatalf("proposal identity = runtime %q observation %q, want %q %q", proposal.RuntimeID, proposal.ObservationID, observed.RuntimeID, observed.ObservationID)
 	}
+	if proposal.Admission.Version != admission.Version {
+		t.Fatalf("proposal admission version = %q, want %q", proposal.Admission.Version, admission.Version)
+	}
+	if proposal.Admission.Preflight.Status != "READY" || !proposal.Admission.Preflight.ReadyForProposal {
+		t.Fatalf("proposal admission preflight = %+v", proposal.Admission.Preflight)
+	}
+	if proposal.Admission.Preflight.RuntimeID != proposal.RuntimeID || proposal.Admission.Preflight.ObservationID != proposal.ObservationID {
+		t.Fatalf("proposal admission identity does not match proposal: %+v", proposal.Admission)
+	}
+	if err := admission.Verify(proposal.Admission); err != nil {
+		t.Fatalf("proposal admission verification failed: %v", err)
+	}
 
 	confirmBody := fmt.Sprintf(`{"state_digest":%q,"confirmed_by":"test-human"}`, proposal.StateDigest)
 	confirmRR := httptest.NewRecorder()
@@ -131,6 +151,9 @@ func TestReleaseStageFlow(t *testing.T) {
 	}
 	if receipt.RuntimeID != proposal.RuntimeID || receipt.ObservationID != proposal.ObservationID {
 		t.Fatalf("receipt identity = runtime %q observation %q, want %q %q", receipt.RuntimeID, receipt.ObservationID, proposal.RuntimeID, proposal.ObservationID)
+	}
+	if receipt.AdmissionDigest != proposal.Admission.Digest {
+		t.Fatalf("receipt admission digest = %q, want %q", receipt.AdmissionDigest, proposal.Admission.Digest)
 	}
 	got, err := os.ReadFile(filepath.Join(stageDir, "KoLmafia-29309.jar"))
 	if err != nil {
@@ -164,6 +187,9 @@ func TestReleaseStageFlow(t *testing.T) {
 		}
 		if auditOut.Events[i].ObservationID != proposal.ObservationID {
 			t.Fatalf("audit event[%d].ObservationID = %q, want %q", i, auditOut.Events[i].ObservationID, proposal.ObservationID)
+		}
+		if auditOut.Events[i].AdmissionDigest != proposal.Admission.Digest {
+			t.Fatalf("audit event[%d].AdmissionDigest = %q, want %q", i, auditOut.Events[i].AdmissionDigest, proposal.Admission.Digest)
 		}
 	}
 }
@@ -317,5 +343,48 @@ func TestPreflightIsReadOnlyAndFreshnessAware(t *testing.T) {
 	}
 	if !slices.Contains(stale.Reasons, "kingdomsitter_status_stale") {
 		t.Fatalf("stale reasons=%v missing kingdomsitter_status_stale", stale.Reasons)
+	}
+}
+
+func TestProposalAdmissionRejectsNotReadyPreflight(t *testing.T) {
+	t.Parallel()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open audit ledger: %v", err)
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		ledger,
+		"run-admission-not-ready",
+	)
+
+	before := ledger.Status().Count
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/proposals/release-stage", strings.NewReader(`{}`)))
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("proposal status = %d, want %d; body=%s", rr.Code, http.StatusConflict, rr.Body.String())
+	}
+	var out struct {
+		Error     string           `json:"error"`
+		Preflight preflight.Result `json:"preflight"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode admission denial: %v", err)
+	}
+	if out.Error != "preflight_not_ready" {
+		t.Fatalf("error = %q, want preflight_not_ready", out.Error)
+	}
+	if out.Preflight.Status != "NOT_READY" || out.Preflight.ReadyForProposal {
+		t.Fatalf("preflight = %+v", out.Preflight)
+	}
+	if ledger.Status().Count != before {
+		t.Fatalf("admission denial appended audit evidence: before=%d after=%d", before, ledger.Status().Count)
+	}
+	if got := s.plane.Snapshot(); slices.Contains(got, stateplane.StateAwaitingConfirmation) || slices.Contains(got, stateplane.StateProposalReady) {
+		t.Fatalf("admission denial changed proposal state: %v", got)
 	}
 }
