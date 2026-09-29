@@ -1,6 +1,10 @@
 package protocol
 
-import "time"
+import (
+	"time"
+
+	"github.com/donCannoli-burns/actor-engine/internal/admission"
+)
 
 type MessageKind string
 
@@ -52,7 +56,8 @@ type Proposal struct {
 	CreatedAt       time.Time      `json:"created_at"`
 	ExpiresAt       time.Time      `json:"expires_at"`
 	HumanSummary    string         `json:"human_summary"`
-	RequiresConfirm bool           `json:"requires_confirmation"`
+	RequiresConfirm bool               `json:"requires_confirmation"`
+	Admission       admission.Evidence `json:"admission"`
 }
 
 type Confirmation struct {
@@ -65,8 +70,9 @@ type Confirmation struct {
 type Receipt struct {
 	ProposalID    string    `json:"proposal_id"`
 	RuntimeID     string    `json:"runtime_id"`
-	ObservationID string    `json:"observation_id,omitempty"`
-	Operation     string    `json:"operation"`
+	ObservationID  string    `json:"observation_id,omitempty"`
+	AdmissionDigest string    `json:"admission_digest,omitempty"`
+	Operation      string    `json:"operation"`
 	Success       bool      `json:"success"`
 	Detail        string    `json:"detail"`
 	ArtifactPath  string    `json:"artifact_path,omitempty"`

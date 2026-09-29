@@ -34,8 +34,9 @@ type Event struct {
 	Type          string    `json:"type"`
 	ProposalID    string    `json:"proposal_id,omitempty"`
 	RuntimeID     string    `json:"runtime_id,omitempty"`
-	ObservationID string    `json:"observation_id,omitempty"`
-	Operation     string    `json:"operation,omitempty"`
+	ObservationID  string    `json:"observation_id,omitempty"`
+	AdmissionDigest string    `json:"admission_digest,omitempty"`
+	Operation      string    `json:"operation,omitempty"`
 	StateDigest   string    `json:"state_digest,omitempty"`
 	Actor         string    `json:"actor,omitempty"`
 	Result        string    `json:"result,omitempty"`
