@@ -51,7 +51,7 @@ a2bdce8ec2b8a14f1175ce5dcda166e0b026f7194459d3486994a0b970631bfc  kolmafia/scrip
 ad915bf57230485364f13ce7f71a96e2067b07767284f3a3b29886c5c0fbe7fd  scripts/smoke.sh
 b9dbfb28a91b8786779874bd9f958e5cd51741df282d9ca6d78310a4ccb30ed9  tests/live/v0.2-ledger/README.md
 d5d8c835ceb867b942fd7cee97121e8378480a9d5603a7969ee34fb87683c6d7  tests/live/v0.2-ledger/TEST-CONTRACT.txt
-355146454d09b7f5dd9bd1451b11b9f62bf5943ad6008ce3601328eaae9dd304  tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh
+5182fecc6b1bed44850de6047e5982b08e65dced1cd835e5e3ef13dbc1daca15  tests/live/v0.2-ledger/live-ledger-restart-authority-test.sh
 c5e126366ec571664744bb1ea8c002b23a4e17f550a9d65f0e213e332a7af279  tests/live/v0.3-identity/README.md
 777df3841f1668fd4460e009a6b107229c382acafedb4c929c9d8fcc44392228  tests/live/v0.3-identity/TEST-CONTRACT.txt
 7499ee91d534eeb12970787a208fd65cdf75fb72f96374be1f679e444b3fe643  tests/live/v0.3-identity/runtime-observation-identity-test.sh
