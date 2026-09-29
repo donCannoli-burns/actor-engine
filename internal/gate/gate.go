@@ -39,6 +39,13 @@ func (g *Gate) Put(p protocol.Proposal) {
 	g.pending[p.ID] = p
 }
 
+func (g *Gate) Drop(id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.pending, id)
+	delete(g.approved, id)
+}
+
 func (g *Gate) Confirm(c protocol.Confirmation) (protocol.Proposal, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

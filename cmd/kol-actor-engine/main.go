@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/donCannoli-burns/actor-engine/internal/actor"
+	"github.com/donCannoli-burns/actor-engine/internal/audit"
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/httpapi"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
@@ -26,6 +28,7 @@ type config struct {
 	kingdomsitter  string
 	latestRelease  string
 	stageDir       string
+	auditLog       string
 	refreshRelease time.Duration
 	refreshSidecar time.Duration
 }
@@ -43,9 +46,20 @@ func run() error {
 
 	plane := stateplane.New(stateplane.StateBooting, stateplane.StateObserveOnly)
 	g := gate.New()
+	ledger, err := audit.Open(cfg.auditLog)
+	if err != nil {
+		return fmt.Errorf("open audit ledger: %w", err)
+	}
+	if _, err := ledger.Append(audit.Event{
+		Type:   audit.EventRuntimeStarted,
+		Result: "ok",
+		Detail: "process started; durable evidence loaded; proposal and confirmation authority not restored",
+	}); err != nil {
+		return fmt.Errorf("record runtime start: %w", err)
+	}
 	releases := release.NewClient(cfg.latestRelease)
 	kingdom := kingdomsitter.NewClient(cfg.kingdomsitter)
-	api := httpapi.New(plane, g, releases, kingdom, cfg.stageDir)
+	api := httpapi.New(plane, g, releases, kingdom, cfg.stageDir, ledger)
 	if cfg.jarPath != "" {
 		rev, err := kolstate.InstalledRevision(cfg.jarPath)
 		if err != nil {
@@ -153,8 +167,12 @@ func parseFlags() config {
 	flag.StringVar(&cfg.kingdomsitter, "kingdomsitter", "http://127.0.0.1:10423", "kingdomsitter sidecar base URL")
 	flag.StringVar(&cfg.latestRelease, "release_url", "https://api.github.com/repos/kolmafia/kolmafia/releases/latest", "latest KoLmafia release API URL")
 	flag.StringVar(&cfg.stageDir, "stage_dir", "./staging", "directory for confirmed release staging")
+	flag.StringVar(&cfg.auditLog, "audit_log", "", "hash-chained JSONL evidence ledger; defaults beside stage_dir")
 	flag.DurationVar(&cfg.refreshRelease, "release_refresh", 15*time.Minute, "release monitor cadence; 0 disables")
 	flag.DurationVar(&cfg.refreshSidecar, "sidecar_refresh", 30*time.Second, "kingdomsitter monitor cadence; 0 disables")
 	flag.Parse()
+	if cfg.auditLog == "" {
+		cfg.auditLog = filepath.Join(filepath.Dir(filepath.Clean(cfg.stageDir)), "audit.jsonl")
+	}
 	return cfg
 }
