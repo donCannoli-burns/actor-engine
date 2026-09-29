@@ -1,6 +1,6 @@
 LIVE_PROPOSAL_ADMISSION_BINDING_TEST
-status: acceptance pending
-development_version: 0.5.0-dev
+status: PASS
+checkpoint: v0.5.0
 verified_base_commit: 4aa5cb1cd72d9c8356b242ce4b7b8b5c68eddd25
 admission_version: kol-actor/admission-v1
 digest: sha256(canonical JSON exact embedded preflight report)
@@ -8,3 +8,11 @@ must_prove: NOT_READY proposal denial; READY-only admission; exact embedded chec
 must_not: call confirmation endpoint; successfully execute release.stage; install release; restart KoLmafia; automate arbitrary gCLI; mutate live KoL state
 optional_human_gate: negative unconfirmed execute probe
 human_boundaries: kol_actor sync; optional unconfirmed execute probe; Actor Engine restart
+date: 2026-09-29
+tested_repository_head: 19a43a36ab53367b8985de835f0e5cb893e060c3
+test_proposal: p-1c0b069655cda0e75d6af5d3
+admission_digest: sha256:f4c40c0010126f8803bf27d4bc64eee01e5789a8f9a557b66702f3b8013ee2bb
+runtime_before_restart: run-29392a3578b6434c8eccf47f4204936e
+runtime_after_restart: run-e5a33878b1316683899cb43a3fe2246e
+negative_execute_probe: PASS HTTP 409 not confirmed
+result: PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST
