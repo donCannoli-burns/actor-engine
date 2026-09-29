@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.3.0
+# Actor Engine — KoL actor runtime prototype v0.4.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -91,6 +91,35 @@ Design: [`docs/IDENTITY.md`](docs/IDENTITY.md)
 Acceptance harness: [`tests/live/v0.3-identity/runtime-observation-identity-test.sh`](tests/live/v0.3-identity/runtime-observation-identity-test.sh)
 
 Observed live result: `PASS LIVE_RUNTIME_OBSERVATION_IDENTITY_TEST`. The harness confirmed runtime turnover, deterministic observation identity across repeated and cross-restart observations, proposal/audit provenance binding, and non-restoration of the pre-restart proposal. It did not confirm or successfully execute `release.stage`.
+
+## v0.4 development — read-only runtime preflight
+
+The next bounded layer adds one **read-only** readiness surface:
+
+```text
+GET /v1/preflight
+```
+
+It answers whether current evidence is sufficient to **form a proposal under policy**. It does not refresh dependencies, create a proposal, confirm anything, execute anything, or grant authority.
+
+Required checks include:
+
+```text
+runtime identity established
+audit ledger verified
+bounded KoL observation present + <= 5m old
+installed KoLmafia revision known
+release metadata present + <= 30m old
+Kingdomsitter status known + <= 2m old + transport healthy
+no unresolved fault
+actor state plane ready
+proposal gate idle
+```
+
+The response explicitly includes `preflight_grants_authority: false` and preserves human confirmation as a separate gate.
+
+Design: [`docs/PREFLIGHT.md`](docs/PREFLIGHT.md)  
+Acceptance harness: [`tests/live/v0.4-preflight/read-only-preflight-test.sh`](tests/live/v0.4-preflight/read-only-preflight-test.sh)
 
 ## What this prototype does
 

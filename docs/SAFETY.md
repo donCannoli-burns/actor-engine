@@ -13,3 +13,7 @@
 10. **Tampered evidence blocks startup.** The JSONL ledger is sequence-checked and hash-chain-verified when opened; a broken chain is an integrity fault, not a source to partially trust.
 
 The v0.2 audit ledger adds durability to evidence, not durability to permission.
+11. **Preflight is evidence, not permission.** A `READY` preflight means only that current evidence is sufficient to form a proposal under policy. It does not confirm, execute, install, restart, or authorize anything.
+12. **Preflight is side-effect free.** Reading `/v1/preflight` must not refresh remote state, append audit evidence, create/drop proposals, or alter the actor state plane.
+
+The v0.4 preflight layer adds readiness visibility, not execution authority.

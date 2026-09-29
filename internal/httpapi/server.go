@@ -18,24 +18,29 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/gate"
 	"github.com/donCannoli-burns/actor-engine/internal/identity"
 	"github.com/donCannoli-burns/actor-engine/internal/kingdomsitter"
+	"github.com/donCannoli-burns/actor-engine/internal/preflight"
 	"github.com/donCannoli-burns/actor-engine/internal/protocol"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
 
 type Server struct {
-	mu          sync.RWMutex
-	plane       *stateplane.Plane
-	gate        *gate.Gate
-	releases    *release.Client
-	kingdom     *kingdomsitter.Client
-	stageDir    string
-	audit       *audit.Ledger
-	runtimeID   string
-	snapshot    protocol.Snapshot
-	latest      release.Info
-	pending     *protocol.Proposal
-	lastReceipt *protocol.Receipt
+	mu                     sync.RWMutex
+	plane                  *stateplane.Plane
+	gate                   *gate.Gate
+	releases               *release.Client
+	kingdom                *kingdomsitter.Client
+	stageDir               string
+	audit                  *audit.Ledger
+	runtimeID              string
+	snapshot               protocol.Snapshot
+	latest                 release.Info
+	observationAt          time.Time
+	releaseRefreshedAt     time.Time
+	kingdomsitterCheckedAt time.Time
+	pending                *protocol.Proposal
+	lastReceipt            *protocol.Receipt
+	now                    func() time.Time
 }
 
 func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdom *kingdomsitter.Client, stageDir string, ledger *audit.Ledger, runtimeID string) *Server {
@@ -48,6 +53,7 @@ func New(plane *stateplane.Plane, g *gate.Gate, releases *release.Client, kingdo
 		audit:     ledger,
 		runtimeID: runtimeID,
 		snapshot:  protocol.Snapshot{Version: "kol-actor/v1", RuntimeID: runtimeID, UpdatedAt: time.Now().UTC()},
+		now:       time.Now,
 	}
 }
 
@@ -61,6 +67,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/state", s.state)
+	mux.HandleFunc("GET /v1/preflight", s.preflight)
 	mux.HandleFunc("GET /v1/audit/recent", s.recentAudit)
 	mux.HandleFunc("GET /v1/release/latest", s.latestRelease)
 	mux.HandleFunc("POST /v1/release/refresh", s.refreshRelease)
@@ -76,7 +83,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.3.0",
+		"version":                    "0.4.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
@@ -96,6 +103,31 @@ func (s *Server) state(w http.ResponseWriter, _ *http.Request) {
 	out.ActiveStates = s.plane.Snapshot()
 	out.UpdatedAt = time.Now().UTC()
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
+	s.mu.RLock()
+	pendingID := ""
+	if s.pending != nil {
+		pendingID = s.pending.ID
+	}
+	in := preflight.Input{
+		Now:                    s.currentTime(),
+		RuntimeID:              s.runtimeID,
+		ObservationID:          s.snapshot.ObservationID,
+		ObservationAt:          s.observationAt,
+		InstalledRevision:      s.snapshot.InstalledRevision,
+		LatestRelease:          s.latest.TagName,
+		ReleaseRefreshedAt:     s.releaseRefreshedAt,
+		KingdomsitterCheckedAt: s.kingdomsitterCheckedAt,
+		KingdomsitterHealthy:   s.snapshot.KingdomsitterHealthy,
+		AuditVerified:          s.audit.Status().Verified,
+		Fault:                  s.snapshot.Fault,
+		PendingProposalID:      pendingID,
+		ActiveStates:           s.plane.Snapshot(),
+	}
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, preflight.Build(in))
 }
 
 func (s *Server) recentAudit(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +172,7 @@ func (s *Server) latestRelease(w http.ResponseWriter, r *http.Request) {
 func (s *Server) applyRelease(info release.Info) {
 	s.mu.Lock()
 	s.latest = info
+	s.releaseRefreshedAt = s.currentTime()
 	s.snapshot.LatestRelease = info.TagName
 	s.snapshot.LatestReleaseURL = info.HTMLURL
 	installed := normalizeRevision(s.snapshot.InstalledRevision)
@@ -154,10 +187,12 @@ func (s *Server) applyRelease(info release.Info) {
 }
 
 func (s *Server) refreshKingdomsitter(w http.ResponseWriter, r *http.Request) {
+	checkedAt := s.currentTime()
 	health, err := s.kingdom.Health(r.Context())
 	if err != nil {
 		s.mu.Lock()
 		s.snapshot.KingdomsitterHealthy = false
+		s.kingdomsitterCheckedAt = checkedAt
 		s.snapshot.Fault = "kingdomsitter: " + err.Error()
 		s.mu.Unlock()
 		s.plane.Deactivate(stateplane.StateKingdomsitterSeen)
@@ -167,6 +202,7 @@ func (s *Server) refreshKingdomsitter(w http.ResponseWriter, r *http.Request) {
 	state, stateErr := s.kingdom.State(r.Context())
 	s.mu.Lock()
 	s.snapshot.KingdomsitterHealthy = true
+	s.kingdomsitterCheckedAt = checkedAt
 	s.snapshot.KingdomsitterState = state
 	s.snapshot.Fault = ""
 	s.mu.Unlock()
@@ -185,6 +221,7 @@ func (s *Server) ingestKoLState(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.snapshot.KoLState = state
 	s.snapshot.ObservationID = observationID
+	s.observationAt = s.currentTime()
 	s.snapshot.Fault = ""
 	s.mu.Unlock()
 	s.plane.Activate(stateplane.StateKoLStateSeen)
@@ -422,6 +459,13 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		s.plane.Activate(stateplane.StateFaulted)
 	}
 	writeJSON(w, http.StatusOK, receipt)
+}
+
+func (s *Server) currentTime() time.Time {
+	if s.now == nil {
+		return time.Now().UTC()
+	}
+	return s.now().UTC()
 }
 
 func (s *Server) withIdentity(event audit.Event) audit.Event {
