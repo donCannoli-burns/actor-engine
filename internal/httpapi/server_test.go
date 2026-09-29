@@ -644,7 +644,6 @@ func TestStaleStateDenialCarriesExecutionAttemptEvidence(t *testing.T) {
 	}
 }
 
-
 func TestFailedStageProducesReconciliationEvidenceWithoutCommittedArtifact(t *testing.T) {
 	t.Parallel()
 	jar := []byte("bad-digest-stage-fixture")

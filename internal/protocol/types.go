@@ -69,18 +69,18 @@ type Confirmation struct {
 }
 
 type Receipt struct {
-	ProposalID         string    `json:"proposal_id"`
-	RuntimeID          string    `json:"runtime_id"`
-	ObservationID      string    `json:"observation_id,omitempty"`
-	AdmissionDigest    string    `json:"admission_digest,omitempty"`
-	ConfirmationDigest string    `json:"confirmation_digest,omitempty"`
-	ExecutionDigest       string                  `json:"execution_digest,omitempty"`
-	ReconciliationDigest  string                  `json:"reconciliation_digest,omitempty"`
-	Reconciliation        reconciliation.Evidence `json:"reconciliation,omitempty"`
-	Operation             string    `json:"operation"`
-	Success            bool      `json:"success"`
-	Detail             string    `json:"detail"`
-	ArtifactPath       string    `json:"artifact_path,omitempty"`
-	SHA256             string    `json:"sha256,omitempty"`
-	CompletedAt        time.Time `json:"completed_at"`
+	ProposalID           string                  `json:"proposal_id"`
+	RuntimeID            string                  `json:"runtime_id"`
+	ObservationID        string                  `json:"observation_id,omitempty"`
+	AdmissionDigest      string                  `json:"admission_digest,omitempty"`
+	ConfirmationDigest   string                  `json:"confirmation_digest,omitempty"`
+	ExecutionDigest      string                  `json:"execution_digest,omitempty"`
+	ReconciliationDigest string                  `json:"reconciliation_digest,omitempty"`
+	Reconciliation       reconciliation.Evidence `json:"reconciliation,omitempty"`
+	Operation            string                  `json:"operation"`
+	Success              bool                    `json:"success"`
+	Detail               string                  `json:"detail"`
+	ArtifactPath         string                  `json:"artifact_path,omitempty"`
+	SHA256               string                  `json:"sha256,omitempty"`
+	CompletedAt          time.Time               `json:"completed_at"`
 }

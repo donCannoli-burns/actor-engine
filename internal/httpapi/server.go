@@ -576,19 +576,19 @@ func (s *Server) executeProposal(w http.ResponseWriter, r *http.Request) {
 		result = "success"
 	}
 	if _, auditErr := s.audit.Append(s.withIdentity(audit.Event{
-		Type:               terminalType,
-		ProposalID:         p.ID,
-		Operation:          p.Operation,
-		StateDigest:        p.StateDigest,
-		AdmissionDigest:    p.Admission.Digest,
-		ConfirmationDigest: confirmationEvidence.Digest,
-		ExecutionDigest:       executionEvidence.Digest,
+		Type:                 terminalType,
+		ProposalID:           p.ID,
+		Operation:            p.Operation,
+		StateDigest:          p.StateDigest,
+		AdmissionDigest:      p.Admission.Digest,
+		ConfirmationDigest:   confirmationEvidence.Digest,
+		ExecutionDigest:      executionEvidence.Digest,
 		ReconciliationDigest: reconciliationEvidence.Digest,
 		Reconciliation:       &reconciliationEvidence,
 		Result:               result,
-		Detail:             receipt.Detail,
-		ArtifactPath:       receipt.ArtifactPath,
-		SHA256:             receipt.SHA256,
+		Detail:               receipt.Detail,
+		ArtifactPath:         receipt.ArtifactPath,
+		SHA256:               receipt.SHA256,
 	})); auditErr != nil {
 		rollbackDetail := ""
 		if receipt.Success && receipt.ArtifactPath != "" {
