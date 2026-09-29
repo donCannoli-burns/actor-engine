@@ -73,3 +73,24 @@ If preflight is NOT_READY, proposal formation returns HTTP 409 with:
 Admission is evidence of proposal eligibility only. The existing state-digest confirmation and execution gates remain separate.
 
 See [`ADMISSION.md`](ADMISSION.md).
+
+## v0.6 development confirmation provenance
+
+A successful `POST /v1/proposals/{id}/confirm` response now includes a `confirmation` evidence object with:
+
+- `version: kol-actor/confirmation-v1`;
+- `digest: sha256:<hex>`;
+- proposal ID;
+- proposal state digest;
+- admission digest;
+- confirming human identifier;
+- originating runtime ID;
+- confirmation timestamp;
+- `evidence_grants_authority: false`;
+- `authority_restorable: false`.
+
+The digest is independently reproducible from canonical JSON of those fields excluding the digest itself.
+
+The durable `proposal.confirmed` audit record stores the full evidence object plus its digest. Execution lifecycle records and receipts carry the confirmation digest. The ledger is never consulted to reconstruct the in-memory approval map.
+
+See [`CONFIRMATION.md`](CONFIRMATION.md).

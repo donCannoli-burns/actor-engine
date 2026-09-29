@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.5.0
+# Actor Engine — KoL actor runtime prototype v0.6.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -163,6 +163,49 @@ Design: [`docs/ADMISSION.md`](docs/ADMISSION.md)
 Acceptance harness: [`tests/live/v0.5-admission/proposal-admission-binding-test.sh`](tests/live/v0.5-admission/proposal-admission-binding-test.sh)
 
 Observed live result: `PASS LIVE_PROPOSAL_ADMISSION_BINDING_TEST`. The real runtime proved NOT_READY proposal refusal, independently recomputable READY admission evidence, audit propagation of the admission digest, rejection of an unconfirmed execute with HTTP 409, and loss of proposal authority across Actor Engine restart while historical admission evidence remained.
+
+## v0.6 development — confirmation provenance binding
+
+The next bounded layer makes human confirmation a **first-class, digestible evidence object** while keeping the actual approval ephemeral and memory-only.
+
+A successful confirmation now produces:
+
+```text
+confirmation.version = kol-actor/confirmation-v1
+confirmation.digest  = SHA-256(canonical confirmation payload)
+
+bound fields:
+  proposal_id
+  state_digest
+  admission_digest
+  confirmed_by
+  runtime_id
+  confirmed_at
+```
+
+The evidence object explicitly carries:
+
+```text
+evidence_grants_authority = false
+authority_restorable      = false
+```
+
+The in-memory gate stores the verified confirmation evidence as the live approval. The durable audit ledger stores a copy as provenance. **Only the in-memory gate entry is authority-bearing.** On restart, the gate is empty and the durable confirmation record cannot recreate permission.
+
+Execution lifecycle evidence and receipts carry the confirmation digest so the provenance chain becomes:
+
+```text
+observation
+  → preflight
+  → admission
+  → proposal
+  → human confirmation evidence
+  → ephemeral in-memory approval
+  → state-bound execution gate
+```
+
+Design: [`docs/CONFIRMATION.md`](docs/CONFIRMATION.md)  
+Acceptance harness: [`tests/live/v0.6-confirmation/confirmation-provenance-binding-test.sh`](tests/live/v0.6-confirmation/confirmation-provenance-binding-test.sh)
 
 ## What this prototype does
 

@@ -1,0 +1,11 @@
+LIVE_CONFIRMATION_PROVENANCE_BINDING_TEST
+status: acceptance pending
+development_version: 0.6.0-dev
+verified_base_commit: 4b3f7c3e06d2d2c10e57edadfdde1c6b2446b495
+confirmation_version: kol-actor/confirmation-v1
+digest: sha256(canonical sorted-key JSON confirmation payload excluding digest)
+binds: proposal_id; state_digest; admission_digest; confirmed_by; runtime_id; confirmed_at
+evidence_flags: evidence_grants_authority=false; authority_restorable=false
+must_prove: human-gated confirmation; independent digest recomputation; full durable confirmation evidence; no execution while approval live; restart clears approval; old execute 409 proposal not found; history survives without authority
+must_not: successfully execute release.stage; install release; restart KoLmafia; mutate live KoL state; restore approval from audit history
+human_boundaries: kol_actor sync; confirmation y/N; Actor Engine restart y/N

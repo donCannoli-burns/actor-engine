@@ -22,3 +22,8 @@ The v0.4 preflight layer adds readiness visibility, not execution authority.
 15. **Admission evidence is tamper-evident.** The embedded exact preflight report is canonically hashed and re-verified before execution after the ordinary confirmation/state gates have passed.
 
 The v0.5 admission layer adds provenance to proposal formation, not authority.
+16. **Confirmation evidence is not the approval store.** The durable confirmation object proves who confirmed which exact proposal/admission/state/runtime and when; only the in-memory gate entry carries live approval.
+17. **Confirmation evidence cannot rehydrate authority.** Startup and audit-ledger replay never insert confirmation evidence into the gate. Historical confirmation evidence must remain executable only as history, never as permission.
+18. **Confirmation provenance is tamper-evident.** Its canonical digest is independently verifiable and is checked by the gate before an approval can be consumed.
+
+The v0.6 confirmation layer completes provenance through the human boundary without making permission durable.

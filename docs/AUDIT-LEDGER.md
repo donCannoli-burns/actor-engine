@@ -93,3 +93,28 @@ No release.stage proposal was executed by this test.
 The harness created and confirmed a bounded `release.stage` proposal, verified `proposal.created` and `proposal.confirmed` in the durable ledger, restarted only the Actor Engine sidecar after an explicit human `y/N` gate, and then proved the old proposal returned `409 proposal not found`. The subsequent denial was itself preserved as new audit evidence.
 
 This closes the v0.2 acceptance target: durable evidence is live-proven across restart while authority remains ephemeral.
+
+
+## v0.6 development — first-class confirmation evidence
+
+The `proposal.confirmed` record now carries the complete `kol-actor/confirmation-v1` evidence object and `confirmation_digest`.
+
+The object binds:
+
+```text
+proposal_id
+state_digest
+admission_digest
+confirmed_by
+runtime_id
+confirmed_at
+```
+
+and explicitly states:
+
+```text
+evidence_grants_authority: false
+authority_restorable: false
+```
+
+This durable object is **not** loaded into the gate when the ledger reopens. The gate's approval map remains newly empty on every process start. Execution lifecycle records and receipts reference the confirmation by digest only, preserving provenance without introducing a second authority store.
