@@ -38,3 +38,10 @@ The v0.7 execution layer adds boundary provenance, not capability.
 25. **Bad-digest acceptance is isolated.** The v0.8 live harness uses a temporary stage directory and a local fixture release server; it never points the acceptance execution at the real runtime staging directory.
 
 The v0.8 reconciliation layer adds provenance, not capability.
+26. **Missing terminal evidence means unknown outcome.** A durable `execution.started` without a matching terminal record must never be rewritten as success, failure, or safe-to-retry.
+27. **Crash recovery is read-only in v0.9.** Recovery detection may classify evidence and block proposal admission, but it may not replay, clean, resolve, or authorize an operation.
+28. **Interrupted execution blocks new proposals.** Preflight must fail closed while any supported durable execution-start record lacks terminal evidence.
+29. **Artifact state remains unknown.** Recovery evidence does not infer artifact success/failure from ledger absence or from temporary-file naming.
+30. **Historical authority stays dead.** Confirmation and execution evidence discovered after restart remain evidence only; no prior proposal is reconstructed into the gate.
+
+The v0.9 recovery layer adds crash detection and admission blocking, not recovery authority.

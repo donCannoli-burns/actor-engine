@@ -127,3 +127,12 @@ completed_at
 The full reconciliation object is returned in the receipt and stored on the terminal `execution.succeeded` or `execution.failed` audit event. Its digest is also exposed separately as `reconciliation_digest`.
 
 Reconciliation evidence is historical evidence only. It cannot authorize, replay, or restore an operation.
+
+
+## v0.9 development crash/restart recovery report
+
+`GET /v1/recovery` is read-only. It scans the verified audit ledger for `execution.started` records whose `execution_digest` has no matching `execution.succeeded` or `execution.failed` record.
+
+Each unresolved start becomes deterministic `kol-actor/interruption-v1` evidence bound to the original proposal, operation, admission/confirmation/execution digests, runtime/observation identity, audit sequence, timestamp, and hash.
+
+The report deliberately states that outcome and artifact state are unknown. It grants no replay or restoration authority and performs no cleanup or resolution.

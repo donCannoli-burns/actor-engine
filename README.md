@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.8.0
+# Actor Engine — KoL actor runtime prototype v0.9.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -289,6 +289,42 @@ Design: [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md)
 Acceptance harness: [`tests/live/v0.8-reconciliation/terminal-reconciliation-provenance-test.sh`](tests/live/v0.8-reconciliation/terminal-reconciliation-provenance-test.sh)
 
 Observed live result: `PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST`. The isolated authorized attempt reached `execution.started`, failed on the intentional digest mismatch, produced independently verifiable terminal reconciliation evidence, left no committed fixture artifact or part file, and preserved durable reconciliation evidence across isolated Actor Engine restart without restoring authority.
+
+## v0.9 development — crash/restart recovery detection
+
+The next bounded layer detects an execution that crossed the durable start boundary but has **no durable terminal result** after restart.
+
+That condition is intentionally not classified as success or failure:
+
+```text
+execution.started
+    ↓
+process disappears before execution.succeeded / execution.failed
+    ↓
+INTERRUPTED_UNKNOWN_OUTCOME
+```
+
+`GET /v1/recovery` derives stable `kol-actor/interruption-v1` evidence from the original hash-chained `execution.started` record. The evidence explicitly carries:
+
+```text
+outcome_known        = false
+artifact_state       = unknown
+replay_permitted     = false
+authority_restorable = false
+```
+
+The read-only report never replays, resolves, cleans, or authorizes anything. While an interruption is unresolved, preflight adds the required failed check `no_interrupted_execution` and refuses new proposal formation.
+
+The live acceptance path runs entirely in an isolated temporary Actor Engine. It deliberately SIGKILLs that process only after:
+
+1. `execution.started` is durable;
+2. the fixture download handler has been entered;
+3. a temporary `.part-*` staging file exists.
+
+After restart the harness proves recovery status is `INTERRUPTED_UNKNOWN_OUTCOME`, the interruption digest is stable across further restarts, preflight remains blocked, the old proposal is not executable, and the orphaned part file is not silently interpreted or removed.
+
+Design: [`docs/RECOVERY.md`](docs/RECOVERY.md)  
+Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](tests/live/v0.9-recovery/crash-restart-recovery-test.sh)
 
 ## What this prototype does
 
