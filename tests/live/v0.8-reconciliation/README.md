@@ -21,7 +21,7 @@ isolated READY proposal
 
 A successful fixture stage or any file left in the temporary stage directory is a failure.
 
-Expected terminal result:
+Observed live result on 2026-09-29:
 
 ```text
 PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST
@@ -30,3 +30,5 @@ The terminal receipt carried independently verifiable reconciliation provenance.
 No fixture artifact or temporary part file remained committed.
 Durable reconciliation evidence survived isolated Actor Engine restart without restoring authority.
 ```
+
+The PASS was obtained against exact repository HEAD `b11b94417bcbfec34d485d91de987c163c32ae8f`. The isolated restart proof passed: durable reconciliation history survived while proposal authority remained absent.

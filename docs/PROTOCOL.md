@@ -106,7 +106,7 @@ For an authorized consume, the full object is stored on `execution.started` and 
 The evidence itself grants no authority.
 
 
-## v0.8 development terminal reconciliation provenance
+## Verified v0.8.0 terminal reconciliation provenance
 
 A terminal execution result can carry `kol-actor/reconciliation-v1` evidence. The canonical digest binds the complete provenance chain through the operation outcome:
 
