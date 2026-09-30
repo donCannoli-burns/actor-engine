@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/donCannoli-burns/actor-engine/internal/audit"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 )
 
 const (
@@ -48,13 +49,19 @@ type Interruption struct {
 	AuthorityRestorable bool      `json:"authority_restorable"`
 }
 
+type ResolvedInterruption struct {
+	Interruption Interruption        `json:"interruption"`
+	Resolution   resolution.Evidence `json:"resolution"`
+}
+
 type Report struct {
-	Version     string            `json:"version"`
-	Status      string            `json:"status"`
-	GeneratedAt time.Time         `json:"generated_at"`
-	RuntimeID   string            `json:"runtime_id"`
-	Unresolved  []Interruption    `json:"unresolved"`
-	Authority   AuthorityBoundary `json:"authority"`
+	Version     string                 `json:"version"`
+	Status      string                 `json:"status"`
+	GeneratedAt time.Time              `json:"generated_at"`
+	RuntimeID   string                 `json:"runtime_id"`
+	Unresolved  []Interruption         `json:"unresolved"`
+	Resolved    []ResolvedInterruption `json:"resolved"`
+	Authority   AuthorityBoundary      `json:"authority"`
 }
 
 type interruptionDigestPayload struct {
@@ -94,8 +101,29 @@ func Build(events []audit.Event, runtimeID string, now time.Time) Report {
 		}
 	}
 
+	resolutions := make(map[string]resolution.Evidence)
+	for _, event := range events {
+		if event.Type != audit.EventRecoveryResolved || event.Resolution == nil {
+			continue
+		}
+		if event.InterruptionDigest == "" || event.ResolutionDigest == "" {
+			continue
+		}
+		if event.Resolution.Digest != event.ResolutionDigest ||
+			event.Resolution.InterruptionDigest != event.InterruptionDigest {
+			continue
+		}
+		if err := resolution.Verify(*event.Resolution); err != nil {
+			continue
+		}
+		if _, exists := resolutions[event.InterruptionDigest]; !exists {
+			resolutions[event.InterruptionDigest] = *event.Resolution
+		}
+	}
+
 	seen := make(map[string]struct{})
 	unresolved := make([]Interruption, 0)
+	resolved := make([]ResolvedInterruption, 0)
 	for _, event := range events {
 		if event.Type != audit.EventExecutionStarted || strings.TrimSpace(event.ExecutionDigest) == "" {
 			continue
@@ -143,6 +171,19 @@ func Build(events []audit.Event, runtimeID string, now time.Time) Report {
 			continue
 		}
 		item.Digest = digest
+		if evidence, ok := resolutions[item.Digest]; ok {
+			if err := resolution.Matches(
+				evidence,
+				item.Digest,
+				item.ProposalID,
+				item.Operation,
+				item.ExecutionDigest,
+				item.StartedEventHash,
+			); err == nil {
+				resolved = append(resolved, ResolvedInterruption{Interruption: item, Resolution: evidence})
+				continue
+			}
+		}
 		unresolved = append(unresolved, item)
 	}
 
@@ -151,6 +192,12 @@ func Build(events []audit.Event, runtimeID string, now time.Time) Report {
 			return unresolved[i].ExecutionDigest < unresolved[j].ExecutionDigest
 		}
 		return unresolved[i].StartedSeq < unresolved[j].StartedSeq
+	})
+	sort.Slice(resolved, func(i, j int) bool {
+		if resolved[i].Interruption.StartedSeq == resolved[j].Interruption.StartedSeq {
+			return resolved[i].Interruption.ExecutionDigest < resolved[j].Interruption.ExecutionDigest
+		}
+		return resolved[i].Interruption.StartedSeq < resolved[j].Interruption.StartedSeq
 	})
 
 	status := StatusClear
@@ -163,6 +210,7 @@ func Build(events []audit.Event, runtimeID string, now time.Time) Report {
 		GeneratedAt: now,
 		RuntimeID:   runtimeID,
 		Unresolved:  unresolved,
+		Resolved:    resolved,
 		Authority: AuthorityBoundary{
 			ReplayPermitted:     false,
 			AuthorityRestorable: false,
