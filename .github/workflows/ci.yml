@@ -15,10 +15,37 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23.x'
-      - name: Formatting
-        run: test -z "$(gofmt -l cmd internal)"
-      - name: Manifest integrity
-        run: sha256sum -c MANIFEST.sha256
+      - name: Formatting diagnostic
+        run: |
+          gofmt -w cmd internal
+          git diff -- cmd internal
+      - name: Manifest diagnostic
+        run: |
+          git ls-files | grep -v '^MANIFEST.sha256      - name: Unit tests
+        run: go test ./...
+      - name: Race tests
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build engine
+        run: go build ./cmd/kol-actor-engine
+      - name: Build C client
+        run: gcc -Wall -Wextra -Werror clients/c/client.c -o /tmp/kol-actor-client-c
+      - name: Build C++ client
+        run: g++ -std=c++20 -Wall -Wextra -Werror clients/cpp/main.cpp -o /tmp/kol-actor-client-cpp
+      - name: KoLmafia package guards
+        run: |
+          python3 -m json.tool manifest.json >/dev/null
+          test "$(python3 -c 'import json; print(json.load(open("manifest.json"))["root_directory"])')" = "kolmafia"
+          grep -q 'ASH execution authority: false' kolmafia/scripts/kol_actor.ash
+          if grep -Eq 'cli_execute\(|visit_url\([^,]+,[[:space:]]*true' kolmafia/scripts/kol_actor.ash; then
+            echo 'unexpected mutating ASH primitive found' >&2
+            exit 1
+          fi
+ | while read -r path; do
+            sha256sum "$path"
+          done > /tmp/MANIFEST.current
+          diff -u MANIFEST.sha256 /tmp/MANIFEST.current || true
       - name: Unit tests
         run: go test ./...
       - name: Race tests
