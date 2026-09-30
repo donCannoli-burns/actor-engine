@@ -1,6 +1,6 @@
 # Crash/restart recovery detection
 
-Status: **v0.9.0-dev — implementation built, live acceptance pending**  
+Status: **verified v0.9.0 checkpoint — live acceptance passed**  
 Verified baseline: **v0.8.0** at `915f8a4900062c41b8ae5128b522157becbb4b3a`  
 Authority change: **none**
 
@@ -157,7 +157,7 @@ On restart it must prove:
 
 The temporary workspace is deleted only by the test harness cleanup after all assertions.
 
-## Acceptance target
+## Acceptance result
 
 ```text
 PASS LIVE_CRASH_RESTART_RECOVERY_TEST
@@ -166,3 +166,12 @@ Restart classified the execution as INTERRUPTED_UNKNOWN_OUTCOME without inferrin
 Recovery evidence was stable, read-only, and blocked new proposal admission without restoring replay authority.
 A second restart preserved the interruption digest; the temporary workspace was cleaned only by the harness.
 ```
+
+
+## Live evidence checkpoint — 2026-09-29/30
+
+**Result:** `PASS LIVE_CRASH_RESTART_RECOVERY_TEST`  
+**Exact tested repository HEAD:** `3fcde7ded17009ce5351c7118fab438465fea79f`  
+**Authority expansion:** none
+
+The isolated process was SIGKILLed only after durable `execution.started`, fixture-download entry, and a real `.part-*` staging file were all proven. Restart classified exactly one `INTERRUPTED_UNKNOWN_OUTCOME`; outcome and artifact state remained unknown; replay and authority restoration remained false; fresh preflight stayed blocked; the old proposal remained absent; and a second restart preserved the interruption digest while changing runtime identity.

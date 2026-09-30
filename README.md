@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.9.0-dev
+# Actor Engine — KoL actor runtime prototype v0.9.0
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -290,7 +290,7 @@ Acceptance harness: [`tests/live/v0.8-reconciliation/terminal-reconciliation-pro
 
 Observed live result: `PASS LIVE_TERMINAL_RECONCILIATION_PROVENANCE_TEST`. The isolated authorized attempt reached `execution.started`, failed on the intentional digest mismatch, produced independently verifiable terminal reconciliation evidence, left no committed fixture artifact or part file, and preserved durable reconciliation evidence across isolated Actor Engine restart without restoring authority.
 
-## v0.9 development — crash/restart recovery detection
+## Verified v0.9.0 checkpoint — crash/restart recovery detection
 
 The next bounded layer detects an execution that crossed the durable start boundary but has **no durable terminal result** after restart.
 
@@ -326,6 +326,8 @@ After restart the harness proves recovery status is `INTERRUPTED_UNKNOWN_OUTCOME
 Design: [`docs/RECOVERY.md`](docs/RECOVERY.md)  
 Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](tests/live/v0.9-recovery/crash-restart-recovery-test.sh)
 
+Observed live result: `PASS LIVE_CRASH_RESTART_RECOVERY_TEST`. The isolated process was killed only after durable `execution.started` and a real partial staging file existed. Restart classified the execution as `INTERRUPTED_UNKNOWN_OUTCOME` without inferring success or failure; recovery evidence stayed stable and read-only, blocked new proposal admission without restoring replay authority, and preserved interruption identity across a second restart.
+
 ## What this prototype does
 
 - runs a local Go actor supervisor on `127.0.0.1:10424`;
@@ -341,7 +343,7 @@ Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](
 
 ## Authority boundary
 
-### Live-validated through v0.8.0
+### Live-validated through v0.9.0
 
 - observation-only ASH → Go state publication;
 - release metadata discovery;
@@ -361,7 +363,7 @@ Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](
 - live in-game mutation;
 - social/chat/trade automation.
 
-Restart semantics are intentionally fail-closed through v0.8.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
+Restart semantics are intentionally fail-closed through v0.9.0: pending proposals are in-memory and disappear on Actor Engine restart. Cached release metadata also requires refresh after restart.
 
 ## Why Go + ASH
 

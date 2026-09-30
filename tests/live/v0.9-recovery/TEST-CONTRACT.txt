@@ -1,6 +1,8 @@
 LIVE_CRASH_RESTART_RECOVERY_TEST
-status: acceptance pending
-development_version: 0.9.0-dev
+status: PASS
+checkpoint: v0.9.0
+date: 2026-09-29/30
+tested_repository_head: 3fcde7ded17009ce5351c7118fab438465fea79f
 verified_base_commit: 915f8a4900062c41b8ae5128b522157becbb4b3a
 recovery_version: kol-actor/recovery-v1
 interruption_version: kol-actor/interruption-v1
@@ -10,3 +12,4 @@ live_path: normal kol_actor sync -> isolated blocking fixture -> READY -> confir
 must_prove: no terminal record before crash; outcome_known=false; artifact_state=unknown; replay_permitted=false; authority_restorable=false; recovery reads append no audit evidence; new proposals blocked; old proposal absent; digest stable across recovery runtimes; orphan part untouched by recovery
 must_not: infer success/failure; retry execution; clean artifact automatically; use real runtime stage directory; restart KoLmafia; mutate live KoL state
 human_boundaries: kol_actor sync; isolated confirmation y/N; isolated crash-probe execute y/N
+result: PASS LIVE_CRASH_RESTART_RECOVERY_TEST

@@ -475,3 +475,13 @@ The terminal receipt carried independently verifiable reconciliation provenance.
 No fixture artifact or temporary part file remained committed.
 Durable reconciliation evidence survived isolated Actor Engine restart without restoring authority.
 ```
+
+
+## v0.9.0 live acceptance — crash/restart recovery detection
+
+**Status:** `PASS LIVE_CRASH_RESTART_RECOVERY_TEST`  
+**Date:** 2026-09-29/30  
+**Exact tested repository HEAD:** `3fcde7ded17009ce5351c7118fab438465fea79f`  
+**Authority expansion:** none
+
+The isolated process was killed only after durable `execution.started` and a partial staging file existed. Restart classified the execution as `INTERRUPTED_UNKNOWN_OUTCOME` without inferring success or failure. Recovery evidence was stable, read-only, and blocked new proposal admission without restoring replay authority. A second restart preserved the interruption digest; the temporary workspace was cleaned only by the harness.
