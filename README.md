@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.9.0
+# Actor Engine — KoL actor runtime prototype v0.10.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -327,6 +327,50 @@ Design: [`docs/RECOVERY.md`](docs/RECOVERY.md)
 Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](tests/live/v0.9-recovery/crash-restart-recovery-test.sh)
 
 Observed live result: `PASS LIVE_CRASH_RESTART_RECOVERY_TEST`. The isolated process was killed only after durable `execution.started` and a real partial staging file existed. Restart classified the execution as `INTERRUPTED_UNKNOWN_OUTCOME` without inferring success or failure; recovery evidence stayed stable and read-only, blocked new proposal admission without restoring replay authority, and preserved interruption identity across a second restart.
+
+## v0.10 development — human recovery resolution with verified quarantine
+
+v0.10 adds the first **explicit human recovery-resolution action**. It still does not replay or classify an interrupted execution as success/failure.
+
+The only supported resolution is:
+
+```text
+quarantine_unknown_no_replay
+```
+
+Before Actor Engine can durably clear an interruption block, a human must move the exact ambiguous `.part-*` file out of active staging into:
+
+```text
+<stage_dir>/.recovery-quarantine/
+```
+
+The resolution endpoint then independently verifies:
+
+```text
+original orphan basename is absent
+derived final artifact basename is absent
+no sibling active .part-* files remain for that asset
+quarantine directory is a real directory, not a symlink
+quarantined file exists and is regular
+quarantined SHA-256 matches the human-supplied value
+```
+
+Only after those checks does Actor Engine append first-class `kol-actor/resolution-v1` evidence and allow the interruption block to clear.
+
+Historical facts remain explicit:
+
+```text
+outcome_remains_unknown       = true
+artifact_state_remains_unknown = true
+replay_permitted              = false
+authority_restorable          = false
+resolution_grants_execution_authority = false
+```
+
+A resolved interruption becomes historical evidence under `GET /v1/recovery`; it does not recreate the old proposal or confirmation.
+
+Design: [`docs/RESOLUTION.md`](docs/RESOLUTION.md)  
+Acceptance harness: [`tests/live/v0.10-resolution/human-quarantine-resolution-test.sh`](tests/live/v0.10-resolution/human-quarantine-resolution-test.sh)
 
 ## What this prototype does
 

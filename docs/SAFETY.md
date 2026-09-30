@@ -45,3 +45,10 @@ The v0.8 reconciliation layer adds provenance, not capability.
 30. **Historical authority stays dead.** Confirmation and execution evidence discovered after restart remain evidence only; no prior proposal is reconstructed into the gate.
 
 The v0.9 recovery layer adds crash detection and admission blocking, not recovery authority.
+31. **Resolution is not outcome classification.** v0.10 may clear an admission block only while preserving `outcome_remains_unknown=true` and `artifact_state_remains_unknown=true`.
+32. **Resolution requires external human disposition first.** Actor Engine does not move, delete, or clean ambiguous bytes as part of the resolution endpoint.
+33. **Active staging must be proven clear.** The original orphan, derived final artifact, and sibling part files must all be absent before resolution can commit.
+34. **Quarantine is hash-bound.** Resolution requires a real non-symlink quarantine directory and a regular quarantined file whose SHA-256 exactly matches the request.
+35. **Resolution cannot replay.** A durable `recovery.resolved` record clears only the interruption admission block; it does not reconstruct proposal, confirmation, or execution authority.
+
+The v0.10 layer adds a human-governed evidence transition from unresolved ambiguity to quarantined ambiguity. It does not add operation replay or live KoL mutation.

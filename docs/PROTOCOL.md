@@ -136,3 +136,14 @@ Reconciliation evidence is historical evidence only. It cannot authorize, replay
 Each unresolved start becomes deterministic `kol-actor/interruption-v1` evidence bound to the original proposal, operation, admission/confirmation/execution digests, runtime/observation identity, audit sequence, timestamp, and hash.
 
 The report deliberately states that outcome and artifact state are unknown. It grants no replay or restoration authority and performs no cleanup or resolution.
+
+
+## v0.10 development human recovery resolution
+
+`POST /v1/recovery/{interruption_digest}/resolve` is the first bounded recovery mutation.
+
+It accepts only `decision=quarantine_unknown_no_replay`. The caller must provide the exact interruption digest, human identifier, bounded note, original orphan basename, deterministic quarantine basename, and quarantine SHA-256.
+
+The endpoint does not move or delete files. Before appending `recovery.resolved`, it verifies that the ambiguous part file has already been removed from active staging, the derived final artifact is absent, no sibling active part files remain, and the quarantined regular file exists under `.recovery-quarantine/` with the exact supplied SHA-256.
+
+A valid response contains `kol-actor/resolution-v1` evidence. The historical interruption remains outcome/artifact-state unknown. Resolution does not grant execution authority or make the old proposal replayable.

@@ -1,0 +1,10 @@
+LIVE_HUMAN_QUARANTINE_RESOLUTION_TEST
+status: acceptance pending
+development_version: 0.10.0-dev
+verified_base_commit: 9e2b39f891e7ba969cce86c3f1355f113818fb15
+resolution_version: kol-actor/resolution-v1
+decision: quarantine_unknown_no_replay
+live_path: normal kol_actor sync -> isolated blocking fixture -> crash after execution.started + part -> unknown outcome -> human quarantine move -> verified resolution -> fresh evidence -> READY -> new unconfirmed proposal -> isolated restart
+must_prove: outcome remains unknown; artifact state remains unknown; original/final/sibling active paths absent; quarantine real regular file; quarantine SHA verified; resolution digest independently recomputed; replay=false; authority_restorable=false; preflight block clears; new proposal formation reopens; no new confirmation/execution; resolution survives restart; old and new proposal authority absent
+must_not: infer success/failure; replay interrupted execution; auto-move/delete ambiguous bytes; use real runtime stage directory; install release; restart KoLmafia; mutate live KoL state
+human_boundaries: kol_actor sync; isolated confirmation y/N; isolated crash execute y/N; isolated quarantine+resolution y/N

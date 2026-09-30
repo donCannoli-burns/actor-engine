@@ -156,3 +156,25 @@ execution.started + no matching terminal             = interrupted / unknown out
 The scanner does not append audit records. Repeated `GET /v1/recovery` reads therefore do not alter the chain.
 
 The interruption digest binds the original `execution.started` sequence number, timestamp, and event hash. The digest remains stable across recovery runtimes while the surrounding report identifies the current runtime that observed it.
+
+
+## v0.10 development — recovery resolution evidence
+
+A successful human recovery resolution appends:
+
+```text
+recovery.resolved
+```
+
+with:
+
+- `interruption_digest`;
+- `resolution_digest`;
+- the full `kol-actor/resolution-v1` object;
+- resolving human identifier;
+- operation/execution binding;
+- verified quarantine SHA-256.
+
+The recovery scanner accepts a resolution only when the nested evidence verifies and exactly matches the interruption's proposal, operation, execution digest, and original `execution.started` event hash.
+
+A resolution event is durable evidence that the human-governed quarantine preconditions were verified. It is never loaded into the in-memory proposal/confirmation gate.

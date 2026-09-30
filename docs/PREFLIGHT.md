@@ -150,3 +150,12 @@ no_interrupted_execution
 The check fails with reason `interrupted_execution_unresolved` when the verified audit ledger contains a supported `execution.started` record with no matching terminal `execution.succeeded` or `execution.failed` record.
 
 This is an admission block only. Preflight does not resolve, replay, or clean interrupted operations.
+
+
+## v0.10 extension — verified human resolution
+
+`no_interrupted_execution` counts only **unresolved** interrupted executions.
+
+A durable `recovery.resolved` record can remove one interruption from the unresolved set only when its `kol-actor/resolution-v1` evidence verifies and exactly binds to that interruption.
+
+Resolution does not itself make preflight READY. Observation, release, Kingdomsitter, fault, actor, and proposal-gate checks must independently be current. If all other evidence is fresh, proposal admission may reopen after a verified resolution.
