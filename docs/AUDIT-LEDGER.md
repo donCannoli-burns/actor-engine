@@ -156,3 +156,18 @@ execution.started + no matching terminal             = interrupted / unknown out
 The scanner does not append audit records. Repeated `GET /v1/recovery` reads therefore do not alter the chain.
 
 The interruption digest binds the original `execution.started` sequence number, timestamp, and event hash. The digest remains stable across recovery runtimes while the surrounding report identifies the current runtime that observed it.
+
+
+## v0.10 development — human recovery resolution evidence
+
+A successful human acknowledgment appends exactly one `recovery.resolved` record containing:
+
+- `interruption_digest`;
+- `resolution_digest`;
+- the full `kol-actor/resolution-v1` object;
+- human actor identity;
+- decision and bounded note.
+
+The event does not create a terminal execution result and does not alter the earlier `execution.started` record. Recovery derives the original interruption exactly as before, then recognizes a valid matching resolution as clearing only its admission-blocking status.
+
+Duplicate resolution requests are rejected and do not append another event.

@@ -15,6 +15,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/confirmation"
 	"github.com/donCannoli-burns/actor-engine/internal/execution"
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 )
 
 const MaxRecent = 100
@@ -30,6 +31,7 @@ const (
 	EventExecutionStarted    = "execution.started"
 	EventExecutionSucceeded  = "execution.succeeded"
 	EventExecutionFailed     = "execution.failed"
+	EventRecoveryResolved    = "recovery.resolved"
 )
 
 type Event struct {
@@ -46,6 +48,9 @@ type Event struct {
 	Execution            *execution.Evidence      `json:"execution,omitempty"`
 	ReconciliationDigest string                   `json:"reconciliation_digest,omitempty"`
 	Reconciliation       *reconciliation.Evidence `json:"reconciliation,omitempty"`
+	InterruptionDigest   string                   `json:"interruption_digest,omitempty"`
+	ResolutionDigest     string                   `json:"resolution_digest,omitempty"`
+	Resolution           *resolution.Evidence     `json:"resolution,omitempty"`
 	Operation            string                   `json:"operation,omitempty"`
 	StateDigest          string                   `json:"state_digest,omitempty"`
 	Actor                string                   `json:"actor,omitempty"`

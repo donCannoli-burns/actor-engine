@@ -2,7 +2,7 @@
   <img src="assets/actor-engine-header.webp" alt="Two people connected by a long tin-can telephone line — Actor Engine communication boundary" width="100%">
 </p>
 
-# Actor Engine — KoL actor runtime prototype v0.9.0
+# Actor Engine — KoL actor runtime prototype v0.10.0-dev
 
 A Go + ASH actor-driven state plane for **monitoring and safely operating around KoLmafia**, designed to plug into Kolmaf-AI Desktop while preserving the existing authority model.
 
@@ -327,6 +327,42 @@ Design: [`docs/RECOVERY.md`](docs/RECOVERY.md)
 Acceptance harness: [`tests/live/v0.9-recovery/crash-restart-recovery-test.sh`](tests/live/v0.9-recovery/crash-restart-recovery-test.sh)
 
 Observed live result: `PASS LIVE_CRASH_RESTART_RECOVERY_TEST`. The isolated process was killed only after durable `execution.started` and a real partial staging file existed. Restart classified the execution as `INTERRUPTED_UNKNOWN_OUTCOME` without inferring success or failure; recovery evidence stayed stable and read-only, blocked new proposal admission without restoring replay authority, and preserved interruption identity across a second restart.
+
+## v0.10 development — explicit human recovery resolution
+
+v0.9 deliberately blocks future proposal admission when a durable `execution.started` has no terminal result. v0.10 adds one human-only governance action for that exact ambiguity:
+
+```text
+INTERRUPTED_UNKNOWN_OUTCOME
+    ↓
+human reviews exact interruption digest
+    ↓
+acknowledge_unknown_no_replay
+    ↓
+durable kol-actor/resolution-v1 evidence
+    ↓
+that interruption's admission block clears
+```
+
+The resolution does **not** say the interrupted operation succeeded or failed. The historical interruption remains:
+
+```text
+outcome_known  = false
+artifact_state = unknown
+```
+
+and the resolution explicitly keeps:
+
+```text
+replay_permitted = false
+authority_restorable = false
+resolution_grants_execution_authority = false
+```
+
+The only supported decision is `acknowledge_unknown_no_replay`. There is no mark-success, mark-failure, retry, replay, cleanup, install, or restart decision.
+
+Design: [`docs/RESOLUTION.md`](docs/RESOLUTION.md)
+Acceptance harness: [`tests/live/v0.10-resolution/human-recovery-resolution-test.sh`](tests/live/v0.10-resolution/human-recovery-resolution-test.sh)
 
 ## What this prototype does
 

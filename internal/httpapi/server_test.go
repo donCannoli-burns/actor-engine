@@ -25,6 +25,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
 
@@ -873,5 +874,195 @@ func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testin
 	pf := s.preflightResult()
 	if !slices.Contains(pf.Reasons, "interrupted_execution_unresolved") {
 		t.Fatalf("preflight reasons=%v missing interrupted execution", pf.Reasons)
+	}
+}
+
+func TestHumanRecoveryResolutionClearsOnlyInterruptionBlock(t *testing.T) {
+	t.Parallel()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	execEvidence := execution.Evidence{
+		Version:                 execution.Version,
+		Digest:                  "sha256:execution-resolution",
+		ProposalID:              "p-resolution",
+		Operation:               "release.stage",
+		ProposalStateDigest:     "proposal-state",
+		AdmissionDigest:         "sha256:admission-resolution",
+		ConfirmationDigest:      "sha256:confirmation-resolution",
+		OriginRuntimeID:         "run-origin-resolution",
+		ExecutionRuntimeID:      "run-origin-resolution",
+		CurrentStateDigest:      "proposal-state",
+		AttemptedAt:             time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC),
+		GateDecision:            execution.GateAuthorized,
+		EvidenceGrantsAuthority: false,
+	}
+	started, err := ledger.Append(audit.Event{
+		Type:               audit.EventExecutionStarted,
+		ProposalID:         execEvidence.ProposalID,
+		RuntimeID:          execEvidence.ExecutionRuntimeID,
+		ObservationID:      "obs-resolution",
+		AdmissionDigest:    execEvidence.AdmissionDigest,
+		ConfirmationDigest: execEvidence.ConfirmationDigest,
+		ExecutionDigest:    execEvidence.Digest,
+		Execution:          &execEvidence,
+		Operation:          execEvidence.Operation,
+		StateDigest:        execEvidence.ProposalStateDigest,
+		Result:             "started",
+	})
+	if err != nil {
+		t.Fatalf("append execution.started: %v", err)
+	}
+
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		ledger,
+		"run-human-resolution",
+	)
+	s.now = func() time.Time { return time.Date(2026, 9, 30, 1, 5, 0, 0, time.UTC) }
+	h := s.Handler()
+
+	before := s.recoveryReport()
+	if before.Status != recovery.StatusInterrupted || len(before.Unresolved) != 1 {
+		t.Fatalf("before recovery = %+v", before)
+	}
+	interruption := before.Unresolved[0]
+	if interruption.StartedEventHash != started.Hash {
+		t.Fatalf("interruption start hash=%q want=%q", interruption.StartedEventHash, started.Hash)
+	}
+
+	body := fmt.Sprintf(
+		`{"interruption_digest":%q,"decision":%q,"resolved_by":"test-human","note":"reviewed exact unknown outcome; continue without replay"}`,
+		interruption.Digest,
+		resolution.DecisionAcknowledgeUnknown,
+	)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("resolve status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var out struct {
+		Resolved   bool                `json:"resolved"`
+		Resolution resolution.Evidence `json:"resolution"`
+		Recovery   recovery.Report     `json:"recovery"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode resolution response: %v", err)
+	}
+	if !out.Resolved {
+		t.Fatal("resolved=false")
+	}
+	if err := resolution.Matches(
+		out.Resolution,
+		interruption.Digest,
+		interruption.ProposalID,
+		interruption.Operation,
+		interruption.ExecutionDigest,
+		interruption.StartedEventHash,
+	); err != nil {
+		t.Fatalf("resolution mismatch: %v", err)
+	}
+	if out.Resolution.ReplayPermitted || out.Resolution.AuthorityRestorable || out.Resolution.ResolutionGrantsExecutionAuthority {
+		t.Fatalf("unsafe resolution authority flags: %+v", out.Resolution)
+	}
+	if !out.Resolution.OutcomeRemainsUnknown || !out.Resolution.ArtifactStateRemainsUnknown {
+		t.Fatalf("resolution rewrote unknown state: %+v", out.Resolution)
+	}
+	if out.Recovery.Status != recovery.StatusClear || len(out.Recovery.Unresolved) != 0 || len(out.Recovery.Resolved) != 1 {
+		t.Fatalf("post-resolution recovery = %+v", out.Recovery)
+	}
+	if out.Recovery.Resolved[0].Interruption.OutcomeKnown ||
+		out.Recovery.Resolved[0].Interruption.ArtifactState != recovery.ArtifactUnknown {
+		t.Fatalf("historical ambiguity changed: %+v", out.Recovery.Resolved[0].Interruption)
+	}
+
+	recent := ledger.Recent(10)
+	last := recent[len(recent)-1]
+	if last.Type != audit.EventRecoveryResolved || last.Resolution == nil {
+		t.Fatalf("last audit event = %+v", last)
+	}
+	if last.InterruptionDigest != interruption.Digest || last.ResolutionDigest != out.Resolution.Digest {
+		t.Fatalf("resolution audit binding = %+v", last)
+	}
+
+	pf := s.preflightResult()
+	if slices.Contains(pf.Reasons, "interrupted_execution_unresolved") {
+		t.Fatalf("preflight still blocked by resolved interruption: %+v", pf)
+	}
+
+	count := ledger.Status().Count
+	again := httptest.NewRecorder()
+	h.ServeHTTP(again, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if again.Code != http.StatusConflict {
+		t.Fatalf("duplicate resolve status=%d body=%s", again.Code, again.Body.String())
+	}
+	if ledger.Status().Count != count {
+		t.Fatalf("duplicate resolution appended audit evidence: before=%d after=%d", count, ledger.Status().Count)
+	}
+
+	oldExecute := httptest.NewRecorder()
+	h.ServeHTTP(oldExecute, httptest.NewRequest(http.MethodPost, "/v1/proposals/"+interruption.ProposalID+"/execute", nil))
+	if oldExecute.Code != http.StatusConflict || !strings.Contains(oldExecute.Body.String(), "proposal not found") {
+		t.Fatalf("old execute status=%d body=%s", oldExecute.Code, oldExecute.Body.String())
+	}
+}
+
+func TestHumanRecoveryResolutionRejectsOutcomeAssertion(t *testing.T) {
+	t.Parallel()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	started, err := ledger.Append(audit.Event{
+		Type:               audit.EventExecutionStarted,
+		ProposalID:         "p-resolution-denied",
+		RuntimeID:          "run-origin",
+		ExecutionDigest:    "sha256:execution-denied",
+		AdmissionDigest:    "sha256:admission",
+		ConfirmationDigest: "sha256:confirmation",
+		Operation:          "release.stage",
+		Result:             "started",
+	})
+	if err != nil {
+		t.Fatalf("append execution.started: %v", err)
+	}
+	if started.Hash == "" {
+		t.Fatal("started hash empty")
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		t.TempDir(),
+		ledger,
+		"run-resolution-denial",
+	)
+	report := s.recoveryReport()
+	if len(report.Unresolved) != 1 {
+		t.Fatalf("report=%+v", report)
+	}
+	interruption := report.Unresolved[0]
+	body := fmt.Sprintf(
+		`{"interruption_digest":%q,"decision":"mark_failed","resolved_by":"test-human","note":"try to assert outcome"}`,
+		interruption.Digest,
+	)
+	before := ledger.Status().Count
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("resolve status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if ledger.Status().Count != before {
+		t.Fatalf("invalid resolution mutated ledger: before=%d after=%d", before, ledger.Status().Count)
+	}
+	after := s.recoveryReport()
+	if after.Status != recovery.StatusInterrupted || len(after.Unresolved) != 1 {
+		t.Fatalf("invalid resolution cleared interruption: %+v", after)
 	}
 }

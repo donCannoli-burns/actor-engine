@@ -175,3 +175,27 @@ A second restart preserved the interruption digest; the temporary workspace was 
 **Authority expansion:** none
 
 The isolated process was SIGKILLed only after durable `execution.started`, fixture-download entry, and a real `.part-*` staging file were all proven. Restart classified exactly one `INTERRUPTED_UNKNOWN_OUTCOME`; outcome and artifact state remained unknown; replay and authority restoration remained false; fresh preflight stayed blocked; the old proposal remained absent; and a second restart preserved the interruption digest while changing runtime identity.
+
+
+## v0.10 extension — explicit human acknowledgment
+
+v0.10 does not change the v0.9 interruption classifier. An unmatched `execution.started` is still reconstructed as `INTERRUPTED_UNKNOWN_OUTCOME` with unknown artifact state.
+
+A valid durable `recovery.resolved` event changes only report grouping:
+
+```text
+before:
+  unresolved = [interruption]
+  status = INTERRUPTED_UNKNOWN_OUTCOME
+
+after:
+  unresolved = []
+  resolved = [{ interruption, resolution }]
+  status = CLEAR
+```
+
+The interruption object itself is unchanged. Its digest remains the same across resolution and restart.
+
+The resolution must match the interruption digest, proposal ID, operation, execution digest, and original `execution.started` event hash. Invalid or mismatched resolution evidence is ignored by the recovery scanner and the interruption remains unresolved.
+
+The only supported decision is `acknowledge_unknown_no_replay`; see [`RESOLUTION.md`](RESOLUTION.md).

@@ -26,12 +26,14 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
 
 type Server struct {
 	mu                     sync.RWMutex
 	proposalMu             sync.Mutex
+	recoveryMu             sync.Mutex
 	plane                  *stateplane.Plane
 	gate                   *gate.Gate
 	releases               *release.Client
@@ -75,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/state", s.state)
 	mux.HandleFunc("GET /v1/preflight", s.preflight)
 	mux.HandleFunc("GET /v1/recovery", s.recovery)
+	mux.HandleFunc("POST /v1/recovery/{digest}/resolve", s.resolveRecovery)
 	mux.HandleFunc("GET /v1/audit/recent", s.recentAudit)
 	mux.HandleFunc("GET /v1/release/latest", s.latestRelease)
 	mux.HandleFunc("POST /v1/release/refresh", s.refreshRelease)
@@ -88,15 +91,17 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":                         true,
-		"name":                       "kol-actor-engine",
-		"version":                    "0.9.0",
-		"runtime_id":                 s.runtimeID,
-		"execution_authority":        "gated-local-operations-only",
-		"live_kolmafia_mutation":     false,
-		"evidence_persistence":       "hash-chained-jsonl",
-		"authority_restored_on_boot": false,
-		"automatic_execution_replay": false,
+		"ok":                            true,
+		"name":                          "kol-actor-engine",
+		"version":                       "0.10.0-dev",
+		"runtime_id":                    s.runtimeID,
+		"execution_authority":           "gated-local-operations-only",
+		"live_kolmafia_mutation":        false,
+		"evidence_persistence":          "hash-chained-jsonl",
+		"authority_restored_on_boot":    false,
+		"automatic_execution_replay":    false,
+		"automatic_recovery_resolution": false,
+		"human_recovery_resolution":     resolution.DecisionAcknowledgeUnknown,
 	})
 }
 
@@ -119,6 +124,81 @@ func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) recovery(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.recoveryReport())
+}
+
+func (s *Server) resolveRecovery(w http.ResponseWriter, r *http.Request) {
+	s.recoveryMu.Lock()
+	defer s.recoveryMu.Unlock()
+
+	pathDigest := strings.TrimSpace(r.PathValue("digest"))
+	var in struct {
+		InterruptionDigest string `json:"interruption_digest"`
+		Decision           string `json:"decision"`
+		ResolvedBy         string `json:"resolved_by"`
+		Note               string `json:"note"`
+	}
+	if err := decodeJSON(r.Body, &in); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	in.InterruptionDigest = strings.TrimSpace(in.InterruptionDigest)
+	if pathDigest == "" || in.InterruptionDigest == "" || pathDigest != in.InterruptionDigest {
+		http.Error(w, "interruption digest must exactly match request path and body", http.StatusBadRequest)
+		return
+	}
+
+	report := s.recoveryReport()
+	var interruption *recovery.Interruption
+	for i := range report.Unresolved {
+		if report.Unresolved[i].Digest == pathDigest {
+			item := report.Unresolved[i]
+			interruption = &item
+			break
+		}
+	}
+	if interruption == nil {
+		http.Error(w, "interruption not found or already resolved", http.StatusConflict)
+		return
+	}
+
+	evidence, err := resolution.Bind(resolution.Input{
+		InterruptionDigest: interruption.Digest,
+		ProposalID:         interruption.ProposalID,
+		Operation:          interruption.Operation,
+		ExecutionDigest:    interruption.ExecutionDigest,
+		StartedEventHash:   interruption.StartedEventHash,
+		Decision:           in.Decision,
+		ResolvedBy:         in.ResolvedBy,
+		Note:               in.Note,
+		RuntimeID:          s.runtimeID,
+		ResolvedAt:         s.currentTime(),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err := s.audit.Append(s.withIdentity(audit.Event{
+		Type:               audit.EventRecoveryResolved,
+		ProposalID:         interruption.ProposalID,
+		Operation:          interruption.Operation,
+		ExecutionDigest:    interruption.ExecutionDigest,
+		InterruptionDigest: interruption.Digest,
+		ResolutionDigest:   evidence.Digest,
+		Resolution:         &evidence,
+		Actor:              evidence.ResolvedBy,
+		Result:             evidence.Decision,
+		Detail:             evidence.Note,
+	})); err != nil {
+		s.setFault(fmt.Errorf("audit recovery resolution: %w", err))
+		http.Error(w, "audit ledger unavailable; recovery resolution refused", http.StatusServiceUnavailable)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"resolved":   true,
+		"resolution": evidence,
+		"recovery":   s.recoveryReport(),
+	})
 }
 
 func (s *Server) recoveryReport() recovery.Report {

@@ -1,0 +1,11 @@
+LIVE_HUMAN_RECOVERY_RESOLUTION_TEST
+status: acceptance pending
+development_version: 0.10.0-dev
+verified_base_commit: 6c9de316b3b732c30d3d940354b95d13c438b239
+resolution_version: kol-actor/resolution-v1
+decision: acknowledge_unknown_no_replay
+digest: sha256(canonical sorted-key JSON resolution payload excluding digest)
+live_path: normal kol_actor sync -> isolated crash window -> INTERRUPTED_UNKNOWN_OUTCOME -> human exact-digest resolution -> fresh READY preflight -> new proposal formed but not confirmed/executed -> isolated restart
+must_prove: historical outcome/artifact remain unknown; resolution independently verifies; exactly one recovery.resolved event; duplicate resolution rejected; orphan part untouched; old proposal dead; new proposal admission reopens only through fresh preflight; new proposal never confirmed/executed; both proposal authorities absent after restart; no replay
+must_not: mark interrupted execution success/failure; replay; cleanup orphan automatically; execute new proposal; use real runtime stage directory; restart KoLmafia; mutate live KoL state
+human_boundaries: kol_actor sync; isolated confirmation y/N; isolated crash-probe execute y/N; exact interruption resolution y/N

@@ -45,3 +45,12 @@ The v0.8 reconciliation layer adds provenance, not capability.
 30. **Historical authority stays dead.** Confirmation and execution evidence discovered after restart remain evidence only; no prior proposal is reconstructed into the gate.
 
 The v0.9 recovery layer adds crash detection and admission blocking, not recovery authority.
+31. **Human resolution cannot assert outcome.** The only v0.10 decision acknowledges that the interruption remains unknown; success/failure assertions are rejected.
+32. **Resolution never means replay.** A durable recovery resolution cannot reconstruct a proposal, confirmation, or execution permit.
+33. **Resolution is exact-digest scoped.** The path/body interruption digest and the resolution's proposal/operation/execution/start-event bindings must all match the unresolved evidence.
+34. **Resolution is durable before effect.** The interruption admission block clears only after `recovery.resolved` is durably appended.
+35. **Artifact cleanup is separate.** Human acknowledgment does not remove, rename, verify, or otherwise interpret any orphaned staging artifact.
+36. **Admission resumes through normal preflight only.** Clearing the interruption check does not bypass freshness, sidecar, audit, fault, or proposal-gate checks.
+
+The v0.10 resolution layer adds a human governance acknowledgment, not execution authority.
+
