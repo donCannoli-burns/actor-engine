@@ -107,11 +107,14 @@ func TestBuildMovesVerifiedQuarantineResolutionOutOfUnresolvedSet(t *testing.T) 
 		Note:                       "quarantine verified; abandon replay",
 		RuntimeID:                  "run-resolution",
 		ResolvedAt:                 time.Date(2026, 9, 30, 1, 1, 0, 0, time.UTC),
-		OrphanName:                 ".KoLmafia-test.jar.part-1234",
-		QuarantineName:             "interrupt.part",
-		QuarantineSHA256:           strings.Repeat("a", 64),
-		OriginalPathAbsentVerified: true,
-		QuarantineHashVerified:     true,
+		OrphanName:                    ".KoLmafia-test.jar.part-1234",
+		FinalArtifactName:             "KoLmafia-test.jar",
+		QuarantineName:                "interrupt.part",
+		QuarantineSHA256:              strings.Repeat("a", 64),
+		OriginalPathAbsentVerified:    true,
+		FinalArtifactAbsentVerified:   true,
+		ActivePartFilesAbsentVerified: true,
+		QuarantineHashVerified:        true,
 	})
 	if err != nil {
 		t.Fatalf("resolution.Bind() error = %v", err)
