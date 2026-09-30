@@ -89,5 +89,5 @@ f71c01be6147ec53696a21b46a62fe9773445bbc4e492c8a21d00089d667fb44  tests/live/v0.
 9ec52d7b003f2bfaa91cff286c4ddcad1a3a0c40f4b60f1babad647e1e5bd89c  tests/live/v0.8-reconciliation/TEST-CONTRACT.txt
 dee8e9206d1e1b909a4bb3c4d8171ec4ef4e818b9ade45eb73f7254eec55f3b5  tests/live/v0.8-reconciliation/terminal-reconciliation-provenance-test.sh
 ce7b949c2e236dd0013f3f04cd5ddb661ca65a0212613347dd1fe3adee83f7dd  tests/live/v0.9-recovery/README.md
-ebb2ce33ad554f20c198f04c6e8fab29cd4aa91d115c3421568cec37b846c0a4  tests/live/v0.9-recovery/TEST-CONTRACT.txt
-10671e34808ae5f9f8c7065fc0d1d44130192042c52f85a26f5a04507fa22517  tests/live/v0.9-recovery/crash-restart-recovery-test.sh
+2530b2e650694b742b76cdb9c96142d01dbd1631b65d35990ee5f93af189129d  tests/live/v0.9-recovery/TEST-CONTRACT.txt
+d846cb87cac29d76e011fd23b67506f89a2b3bc1935b13dbaf300067d449d2ae  tests/live/v0.9-recovery/crash-restart-recovery-test.sh
