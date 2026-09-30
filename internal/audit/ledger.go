@@ -31,7 +31,7 @@ const (
 	EventExecutionStarted    = "execution.started"
 	EventExecutionSucceeded  = "execution.succeeded"
 	EventExecutionFailed     = "execution.failed"
-	EventRecoveryResolved     = "recovery.resolved"
+	EventRecoveryResolved    = "recovery.resolved"
 )
 
 type Event struct {

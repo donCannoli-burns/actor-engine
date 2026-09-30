@@ -88,7 +88,6 @@ func TestVerifyRejectsTampering(t *testing.T) {
 	}
 }
 
-
 func TestBuildMovesVerifiedQuarantineResolutionOutOfUnresolvedSet(t *testing.T) {
 	t.Parallel()
 	started := startedFixture()

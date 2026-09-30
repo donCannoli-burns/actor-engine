@@ -877,7 +877,6 @@ func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testin
 	}
 }
 
-
 func recoveryServerFixture(t *testing.T) (*Server, *audit.Ledger, string, recovery.Interruption) {
 	t.Helper()
 	stageDir := t.TempDir()
@@ -999,9 +998,9 @@ func TestResolveRecoveryRequiresVerifiedQuarantineDisposition(t *testing.T) {
 func TestResolveRecoveryRejectsActivePartOrFinalArtifact(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name      string
-		create    func(stageDir, orphanName string) error
-		want      string
+		name   string
+		create func(stageDir, orphanName string) error
+		want   string
 	}{
 		{
 			name: "orphan remains",

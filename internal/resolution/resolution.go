@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	Version                         = "kol-actor/resolution-v1"
+	Version                           = "kol-actor/resolution-v1"
 	DecisionQuarantineUnknownNoReplay = "quarantine_unknown_no_replay"
-	DispositionQuarantined          = "quarantined"
-	MaxActorLength                  = 128
-	MaxNoteLength                   = 512
-	MaxNameLength                   = 255
+	DispositionQuarantined            = "quarantined"
+	MaxActorLength                    = 128
+	MaxNoteLength                     = 512
+	MaxNameLength                     = 255
 )
 
 type Evidence struct {
@@ -49,16 +49,16 @@ type Evidence struct {
 }
 
 type Input struct {
-	InterruptionDigest         string
-	ProposalID                 string
-	Operation                  string
-	ExecutionDigest            string
-	StartedEventHash           string
-	Decision                   string
-	ResolvedBy                 string
-	Note                       string
-	RuntimeID                  string
-	ResolvedAt                 time.Time
+	InterruptionDigest            string
+	ProposalID                    string
+	Operation                     string
+	ExecutionDigest               string
+	StartedEventHash              string
+	Decision                      string
+	ResolvedBy                    string
+	Note                          string
+	RuntimeID                     string
+	ResolvedAt                    time.Time
 	OrphanName                    string
 	FinalArtifactName             string
 	QuarantineName                string
