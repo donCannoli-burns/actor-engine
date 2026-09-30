@@ -91,17 +91,17 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":                         true,
-		"name":                       "kol-actor-engine",
-		"version":                    "0.10.0-dev",
-		"runtime_id":                 s.runtimeID,
-		"execution_authority":        "gated-local-operations-only",
-		"live_kolmafia_mutation":     false,
-		"evidence_persistence":       "hash-chained-jsonl",
-		"authority_restored_on_boot": false,
-		"automatic_execution_replay": false,
+		"ok":                            true,
+		"name":                          "kol-actor-engine",
+		"version":                       "0.10.0-dev",
+		"runtime_id":                    s.runtimeID,
+		"execution_authority":           "gated-local-operations-only",
+		"live_kolmafia_mutation":        false,
+		"evidence_persistence":          "hash-chained-jsonl",
+		"authority_restored_on_boot":    false,
+		"automatic_execution_replay":    false,
 		"automatic_recovery_resolution": false,
-		"human_recovery_resolution": resolution.DecisionAcknowledgeUnknown,
+		"human_recovery_resolution":     resolution.DecisionAcknowledgeUnknown,
 	})
 }
 
