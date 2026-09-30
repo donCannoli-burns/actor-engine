@@ -18,11 +18,14 @@ func fixture() Input {
 		Note:                       "quarantined ambiguous bytes; continue without replay",
 		RuntimeID:                  "run-resolution",
 		ResolvedAt:                 time.Date(2026, 9, 30, 1, 0, 0, 123, time.UTC),
-		OrphanName:                 ".KoLmafia-test.jar.part-1234",
-		QuarantineName:             "interrupt.part",
-		QuarantineSHA256:           strings.Repeat("a", 64),
-		OriginalPathAbsentVerified: true,
-		QuarantineHashVerified:     true,
+		OrphanName:                    ".KoLmafia-test.jar.part-1234",
+		FinalArtifactName:             "KoLmafia-test.jar",
+		QuarantineName:                "interrupt.part",
+		QuarantineSHA256:              strings.Repeat("a", 64),
+		OriginalPathAbsentVerified:    true,
+		FinalArtifactAbsentVerified:   true,
+		ActivePartFilesAbsentVerified: true,
+		QuarantineHashVerified:        true,
 	}
 }
 
@@ -39,7 +42,8 @@ func TestBindVerify(t *testing.T) {
 		t.Fatalf("resolution flags = %+v", e)
 	}
 	if e.AmbiguousBytesDisposition != DispositionQuarantined ||
-		!e.OriginalPathAbsentVerified || !e.QuarantineHashVerified {
+		!e.OriginalPathAbsentVerified || !e.FinalArtifactAbsentVerified ||
+		!e.ActivePartFilesAbsentVerified || !e.QuarantineHashVerified {
 		t.Fatalf("quarantine disposition = %+v", e)
 	}
 	if e.ReplayPermitted || e.AuthorityRestorable || e.ResolutionGrantsExecutionAuthority {

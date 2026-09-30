@@ -25,6 +25,7 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
 
@@ -873,5 +874,220 @@ func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testin
 	pf := s.preflightResult()
 	if !slices.Contains(pf.Reasons, "interrupted_execution_unresolved") {
 		t.Fatalf("preflight reasons=%v missing interrupted execution", pf.Reasons)
+	}
+}
+
+
+func recoveryServerFixture(t *testing.T) (*Server, *audit.Ledger, string, recovery.Interruption) {
+	t.Helper()
+	stageDir := t.TempDir()
+	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	execEvidence := execution.Evidence{
+		Version:                 execution.Version,
+		Digest:                  "sha256:execution-resolution",
+		ProposalID:              "p-resolution",
+		Operation:               "release.stage",
+		ProposalStateDigest:     "proposal-state",
+		AdmissionDigest:         "sha256:admission",
+		ConfirmationDigest:      "sha256:confirmation",
+		OriginRuntimeID:         "run-origin",
+		ExecutionRuntimeID:      "run-origin",
+		CurrentStateDigest:      "proposal-state",
+		AttemptedAt:             time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC),
+		GateDecision:            execution.GateAuthorized,
+		EvidenceGrantsAuthority: false,
+	}
+	if _, err := ledger.Append(audit.Event{
+		Type:               audit.EventExecutionStarted,
+		ProposalID:         execEvidence.ProposalID,
+		RuntimeID:          "run-origin",
+		ObservationID:      "obs-origin",
+		AdmissionDigest:    execEvidence.AdmissionDigest,
+		ConfirmationDigest: execEvidence.ConfirmationDigest,
+		ExecutionDigest:    execEvidence.Digest,
+		Execution:          &execEvidence,
+		Operation:          execEvidence.Operation,
+		StateDigest:        execEvidence.ProposalStateDigest,
+		Result:             "started",
+	}); err != nil {
+		t.Fatalf("append start: %v", err)
+	}
+	s := New(
+		stateplane.New(stateplane.StateReady, stateplane.StateObserveOnly),
+		gate.New(),
+		release.NewClient("http://127.0.0.1:1/latest"),
+		kingdomsitter.NewClient("http://127.0.0.1:1"),
+		stageDir,
+		ledger,
+		"run-resolution",
+	)
+	report := s.recoveryReport()
+	if len(report.Unresolved) != 1 {
+		t.Fatalf("recovery report=%+v", report)
+	}
+	return s, ledger, stageDir, report.Unresolved[0]
+}
+
+func TestResolveRecoveryRequiresVerifiedQuarantineDisposition(t *testing.T) {
+	t.Parallel()
+	s, ledger, stageDir, interruption := recoveryServerFixture(t)
+	orphanName := ".KoLmafia-test.jar.part-1234"
+	quarantineName := strings.TrimPrefix(interruption.Digest, "sha256:") + ".part"
+	quarantineDir := filepath.Join(stageDir, ".recovery-quarantine")
+	if err := os.Mkdir(quarantineDir, 0o755); err != nil {
+		t.Fatalf("mkdir quarantine: %v", err)
+	}
+	quarantineBytes := []byte("ambiguous partial bytes")
+	if err := os.WriteFile(filepath.Join(quarantineDir, quarantineName), quarantineBytes, 0o600); err != nil {
+		t.Fatalf("write quarantine: %v", err)
+	}
+	sum := sha256.Sum256(quarantineBytes)
+	qsha := hex.EncodeToString(sum[:])
+
+	body := fmt.Sprintf(
+		`{"interruption_digest":%q,"decision":%q,"resolved_by":"test-human","note":"quarantine verified; abandon replay","orphan_name":%q,"quarantine_name":%q,"quarantine_sha256":%q}`,
+		interruption.Digest,
+		resolution.DecisionQuarantineUnknownNoReplay,
+		orphanName,
+		quarantineName,
+		qsha,
+	)
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("resolve status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var out struct {
+		Resolved   bool                `json:"resolved"`
+		Resolution resolution.Evidence `json:"resolution"`
+		Recovery   recovery.Report     `json:"recovery"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode resolution: %v", err)
+	}
+	if !out.Resolved || out.Recovery.Status != recovery.StatusClear ||
+		len(out.Recovery.Unresolved) != 0 || len(out.Recovery.Resolved) != 1 {
+		t.Fatalf("resolution response=%+v", out)
+	}
+	if err := resolution.Verify(out.Resolution); err != nil {
+		t.Fatalf("resolution verify: %v", err)
+	}
+	if out.Resolution.FinalArtifactName != "KoLmafia-test.jar" ||
+		out.Resolution.QuarantineSHA256 != qsha ||
+		!out.Resolution.FinalArtifactAbsentVerified ||
+		!out.Resolution.ActivePartFilesAbsentVerified {
+		t.Fatalf("resolution filesystem evidence=%+v", out.Resolution)
+	}
+	recent := ledger.Recent(10)
+	last := recent[len(recent)-1]
+	if last.Type != audit.EventRecoveryResolved || last.Resolution == nil ||
+		last.ResolutionDigest != out.Resolution.Digest {
+		t.Fatalf("last audit event=%+v", last)
+	}
+
+	pf := s.preflightResult()
+	for _, check := range pf.Checks {
+		if check.Name == "no_interrupted_execution" && !check.OK {
+			t.Fatalf("resolved interruption still blocks preflight: %+v", pf)
+		}
+	}
+}
+
+func TestResolveRecoveryRejectsActivePartOrFinalArtifact(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		create    func(stageDir, orphanName string) error
+		want      string
+	}{
+		{
+			name: "orphan remains",
+			create: func(stageDir, orphanName string) error {
+				return os.WriteFile(filepath.Join(stageDir, orphanName), []byte("orphan"), 0o600)
+			},
+			want: "original orphan still exists",
+		},
+		{
+			name: "final exists",
+			create: func(stageDir, orphanName string) error {
+				return os.WriteFile(filepath.Join(stageDir, "KoLmafia-test.jar"), []byte("final"), 0o600)
+			},
+			want: "final artifact exists",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, stageDir, interruption := recoveryServerFixture(t)
+			orphanName := ".KoLmafia-test.jar.part-1234"
+			if err := tc.create(stageDir, orphanName); err != nil {
+				t.Fatalf("create unsafe artifact: %v", err)
+			}
+			qdir := filepath.Join(stageDir, ".recovery-quarantine")
+			if err := os.Mkdir(qdir, 0o755); err != nil {
+				t.Fatalf("mkdir quarantine: %v", err)
+			}
+			qname := strings.TrimPrefix(interruption.Digest, "sha256:") + ".part"
+			data := []byte("quarantine")
+			if err := os.WriteFile(filepath.Join(qdir, qname), data, 0o600); err != nil {
+				t.Fatalf("write quarantine: %v", err)
+			}
+			sum := sha256.Sum256(data)
+			body := fmt.Sprintf(
+				`{"interruption_digest":%q,"decision":%q,"resolved_by":"human","note":"test","orphan_name":%q,"quarantine_name":%q,"quarantine_sha256":%q}`,
+				interruption.Digest,
+				resolution.DecisionQuarantineUnknownNoReplay,
+				orphanName,
+				qname,
+				hex.EncodeToString(sum[:]),
+			)
+			rr := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+			if rr.Code != http.StatusConflict || !strings.Contains(rr.Body.String(), tc.want) {
+				t.Fatalf("resolve status=%d body=%q want conflict containing %q", rr.Code, rr.Body.String(), tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveRecoveryRejectsWrongQuarantineHashAndSymlinkDirectory(t *testing.T) {
+	t.Parallel()
+	s, _, stageDir, interruption := recoveryServerFixture(t)
+	orphanName := ".KoLmafia-test.jar.part-1234"
+	qname := strings.TrimPrefix(interruption.Digest, "sha256:") + ".part"
+	qdir := filepath.Join(stageDir, ".recovery-quarantine")
+	if err := os.Mkdir(qdir, 0o755); err != nil {
+		t.Fatalf("mkdir quarantine: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(qdir, qname), []byte("bytes"), 0o600); err != nil {
+		t.Fatalf("write quarantine: %v", err)
+	}
+	body := fmt.Sprintf(
+		`{"interruption_digest":%q,"decision":%q,"resolved_by":"human","note":"test","orphan_name":%q,"quarantine_name":%q,"quarantine_sha256":%q}`,
+		interruption.Digest,
+		resolution.DecisionQuarantineUnknownNoReplay,
+		orphanName,
+		qname,
+		strings.Repeat("0", 64),
+	)
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if rr.Code != http.StatusConflict || !strings.Contains(rr.Body.String(), "sha256") {
+		t.Fatalf("wrong-hash status=%d body=%q", rr.Code, rr.Body.String())
+	}
+
+	if err := os.RemoveAll(qdir); err != nil {
+		t.Fatalf("remove quarantine: %v", err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, qdir); err != nil {
+		t.Fatalf("symlink quarantine: %v", err)
+	}
+	rr = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/recovery/"+interruption.Digest+"/resolve", strings.NewReader(body)))
+	if rr.Code != http.StatusConflict || !strings.Contains(rr.Body.String(), "real directory") {
+		t.Fatalf("symlink-dir status=%d body=%q", rr.Code, rr.Body.String())
 	}
 }

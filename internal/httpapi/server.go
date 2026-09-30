@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -26,12 +27,14 @@ import (
 	"github.com/donCannoli-burns/actor-engine/internal/reconciliation"
 	"github.com/donCannoli-burns/actor-engine/internal/recovery"
 	"github.com/donCannoli-burns/actor-engine/internal/release"
+	"github.com/donCannoli-burns/actor-engine/internal/resolution"
 	"github.com/donCannoli-burns/actor-engine/internal/stateplane"
 )
 
 type Server struct {
 	mu                     sync.RWMutex
 	proposalMu             sync.Mutex
+	recoveryMu             sync.Mutex
 	plane                  *stateplane.Plane
 	gate                   *gate.Gate
 	releases               *release.Client
@@ -75,6 +78,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/state", s.state)
 	mux.HandleFunc("GET /v1/preflight", s.preflight)
 	mux.HandleFunc("GET /v1/recovery", s.recovery)
+	mux.HandleFunc("POST /v1/recovery/{digest}/resolve", s.resolveRecovery)
 	mux.HandleFunc("GET /v1/audit/recent", s.recentAudit)
 	mux.HandleFunc("GET /v1/release/latest", s.latestRelease)
 	mux.HandleFunc("POST /v1/release/refresh", s.refreshRelease)
@@ -90,13 +94,15 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                         true,
 		"name":                       "kol-actor-engine",
-		"version":                    "0.9.0",
+		"version":                    "0.10.0-dev",
 		"runtime_id":                 s.runtimeID,
 		"execution_authority":        "gated-local-operations-only",
 		"live_kolmafia_mutation":     false,
 		"evidence_persistence":       "hash-chained-jsonl",
 		"authority_restored_on_boot": false,
-		"automatic_execution_replay": false,
+		"automatic_execution_replay":    false,
+		"automatic_recovery_resolution": false,
+		"human_recovery_resolution":     resolution.DecisionQuarantineUnknownNoReplay,
 	})
 }
 
@@ -119,6 +125,225 @@ func (s *Server) preflight(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) recovery(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.recoveryReport())
+}
+
+func (s *Server) resolveRecovery(w http.ResponseWriter, r *http.Request) {
+	s.recoveryMu.Lock()
+	defer s.recoveryMu.Unlock()
+
+	pathDigest := strings.TrimSpace(r.PathValue("digest"))
+	var in struct {
+		InterruptionDigest string `json:"interruption_digest"`
+		Decision           string `json:"decision"`
+		ResolvedBy         string `json:"resolved_by"`
+		Note               string `json:"note"`
+		OrphanName         string `json:"orphan_name"`
+		QuarantineName     string `json:"quarantine_name"`
+		QuarantineSHA256   string `json:"quarantine_sha256"`
+	}
+	if err := decodeJSON(r.Body, &in); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	in.InterruptionDigest = strings.TrimSpace(in.InterruptionDigest)
+	if pathDigest == "" || in.InterruptionDigest == "" || pathDigest != in.InterruptionDigest {
+		http.Error(w, "interruption digest must exactly match request path and body", http.StatusBadRequest)
+		return
+	}
+
+	report := s.recoveryReport()
+	var interruption *recovery.Interruption
+	for i := range report.Unresolved {
+		if report.Unresolved[i].Digest == pathDigest {
+			item := report.Unresolved[i]
+			interruption = &item
+			break
+		}
+	}
+	if interruption == nil {
+		http.Error(w, "interruption not found or already resolved", http.StatusConflict)
+		return
+	}
+	if strings.TrimSpace(in.Decision) != resolution.DecisionQuarantineUnknownNoReplay {
+		http.Error(w, "unsupported recovery resolution decision", http.StatusBadRequest)
+		return
+	}
+
+	orphanName := strings.TrimSpace(in.OrphanName)
+	finalName, err := finalArtifactNameFromPart(orphanName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	quarantineName := strings.TrimSpace(in.QuarantineName)
+	if !safeRecoveryBasename(quarantineName) {
+		http.Error(w, "quarantine name must be a simple basename", http.StatusBadRequest)
+		return
+	}
+	wantQuarantineName := strings.TrimPrefix(interruption.Digest, "sha256:") + ".part"
+	if quarantineName != wantQuarantineName {
+		http.Error(w, "quarantine name must be derived from the interruption digest", http.StatusBadRequest)
+		return
+	}
+
+	stageRoot, err := filepath.Abs(filepath.Clean(s.stageDir))
+	if err != nil {
+		http.Error(w, "staging directory is unavailable", http.StatusConflict)
+		return
+	}
+	orphanPath := filepath.Join(stageRoot, orphanName)
+	finalPath := filepath.Join(stageRoot, finalName)
+	if exists, err := pathExistsNoFollow(orphanPath); err != nil {
+		http.Error(w, "cannot verify original orphan path: "+err.Error(), http.StatusConflict)
+		return
+	} else if exists {
+		http.Error(w, "original orphan still exists in active staging", http.StatusConflict)
+		return
+	}
+	if exists, err := pathExistsNoFollow(finalPath); err != nil {
+		http.Error(w, "cannot verify final artifact path: "+err.Error(), http.StatusConflict)
+		return
+	} else if exists {
+		http.Error(w, "final artifact exists; interrupted outcome remains unsafe to resolve", http.StatusConflict)
+		return
+	}
+	entries, err := os.ReadDir(stageRoot)
+	if err != nil {
+		http.Error(w, "cannot inspect active staging: "+err.Error(), http.StatusConflict)
+		return
+	}
+	partPrefix := "." + finalName + ".part-"
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), partPrefix) {
+			http.Error(w, "active staging still contains a part file for the interrupted asset", http.StatusConflict)
+			return
+		}
+	}
+
+	quarantineDir := filepath.Join(stageRoot, ".recovery-quarantine")
+	info, err := os.Lstat(quarantineDir)
+	if err != nil {
+		http.Error(w, "recovery quarantine directory is unavailable", http.StatusConflict)
+		return
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		http.Error(w, "recovery quarantine path must be a real directory", http.StatusConflict)
+		return
+	}
+	quarantinePath := filepath.Join(quarantineDir, quarantineName)
+	actualSHA, err := regularFileSHA256(quarantinePath)
+	if err != nil {
+		http.Error(w, "cannot verify quarantined artifact: "+err.Error(), http.StatusConflict)
+		return
+	}
+	requestedSHA := strings.ToLower(strings.TrimSpace(in.QuarantineSHA256))
+	if requestedSHA == "" || requestedSHA != actualSHA {
+		http.Error(w, "quarantine sha256 does not match verified bytes", http.StatusConflict)
+		return
+	}
+
+	evidence, err := resolution.Bind(resolution.Input{
+		InterruptionDigest:         interruption.Digest,
+		ProposalID:                 interruption.ProposalID,
+		Operation:                  interruption.Operation,
+		ExecutionDigest:            interruption.ExecutionDigest,
+		StartedEventHash:           interruption.StartedEventHash,
+		Decision:                   in.Decision,
+		ResolvedBy:                 in.ResolvedBy,
+		Note:                       in.Note,
+		RuntimeID:                  s.runtimeID,
+		ResolvedAt:                 s.currentTime(),
+		OrphanName:                 orphanName,
+		FinalArtifactName:          finalName,
+		QuarantineName:             quarantineName,
+		QuarantineSHA256:           actualSHA,
+		OriginalPathAbsentVerified: true,
+		FinalArtifactAbsentVerified: true,
+		ActivePartFilesAbsentVerified: true,
+		QuarantineHashVerified:     true,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err := s.audit.Append(s.withIdentity(audit.Event{
+		Type:               audit.EventRecoveryResolved,
+		ProposalID:         interruption.ProposalID,
+		Operation:          interruption.Operation,
+		ExecutionDigest:    interruption.ExecutionDigest,
+		InterruptionDigest: interruption.Digest,
+		ResolutionDigest:   evidence.Digest,
+		Resolution:         &evidence,
+		Actor:              evidence.ResolvedBy,
+		Result:             evidence.Decision,
+		Detail:             evidence.Note,
+		SHA256:             evidence.QuarantineSHA256,
+	})); err != nil {
+		s.setFault(fmt.Errorf("audit recovery resolution: %w", err))
+		http.Error(w, "audit ledger unavailable; recovery resolution refused", http.StatusServiceUnavailable)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"resolved":   true,
+		"resolution": evidence,
+		"recovery":   s.recoveryReport(),
+	})
+}
+
+func safeRecoveryBasename(name string) bool {
+	name = strings.TrimSpace(name)
+	return name != "" && name != "." && filepath.Base(name) == name &&
+		!strings.ContainsAny(name, `/\\`) && len(name) <= resolution.MaxNameLength
+}
+
+func finalArtifactNameFromPart(orphanName string) (string, error) {
+	orphanName = strings.TrimSpace(orphanName)
+	if !safeRecoveryBasename(orphanName) || !strings.HasPrefix(orphanName, ".") {
+		return "", fmt.Errorf("orphan name must be a simple hidden part-file basename")
+	}
+	trimmed := strings.TrimPrefix(orphanName, ".")
+	idx := strings.LastIndex(trimmed, ".part-")
+	if idx <= 0 || idx+len(".part-") >= len(trimmed) {
+		return "", fmt.Errorf("orphan name does not match the staging part-file contract")
+	}
+	finalName := trimmed[:idx]
+	if !safeRecoveryBasename(finalName) {
+		return "", fmt.Errorf("derived final artifact name is invalid")
+	}
+	return finalName, nil
+}
+
+func pathExistsNoFollow(path string) (bool, error) {
+	_, err := os.Lstat(path)
+	switch {
+	case err == nil:
+		return true, nil
+	case os.IsNotExist(err):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+func regularFileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("path is not a regular file")
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (s *Server) recoveryReport() recovery.Report {

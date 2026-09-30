@@ -35,9 +35,12 @@ type Evidence struct {
 	ArtifactStateRemainsUnknown        bool      `json:"artifact_state_remains_unknown"`
 	AmbiguousBytesDisposition          string    `json:"ambiguous_bytes_disposition"`
 	OrphanName                         string    `json:"orphan_name"`
+	FinalArtifactName                  string    `json:"final_artifact_name"`
 	QuarantineName                     string    `json:"quarantine_name"`
 	QuarantineSHA256                   string    `json:"quarantine_sha256"`
 	OriginalPathAbsentVerified         bool      `json:"original_path_absent_verified"`
+	FinalArtifactAbsentVerified        bool      `json:"final_artifact_absent_verified"`
+	ActivePartFilesAbsentVerified      bool      `json:"active_part_files_absent_verified"`
 	QuarantineHashVerified             bool      `json:"quarantine_hash_verified"`
 	ReplayPermitted                    bool      `json:"replay_permitted"`
 	AuthorityRestorable                bool      `json:"authority_restorable"`
@@ -56,11 +59,14 @@ type Input struct {
 	Note                       string
 	RuntimeID                  string
 	ResolvedAt                 time.Time
-	OrphanName                 string
-	QuarantineName             string
-	QuarantineSHA256           string
-	OriginalPathAbsentVerified bool
-	QuarantineHashVerified     bool
+	OrphanName                    string
+	FinalArtifactName             string
+	QuarantineName                string
+	QuarantineSHA256              string
+	OriginalPathAbsentVerified    bool
+	FinalArtifactAbsentVerified   bool
+	ActivePartFilesAbsentVerified bool
+	QuarantineHashVerified        bool
 }
 
 type digestPayload struct {
@@ -79,9 +85,12 @@ type digestPayload struct {
 	ArtifactStateRemainsUnknown        bool      `json:"artifact_state_remains_unknown"`
 	AmbiguousBytesDisposition          string    `json:"ambiguous_bytes_disposition"`
 	OrphanName                         string    `json:"orphan_name"`
+	FinalArtifactName                  string    `json:"final_artifact_name"`
 	QuarantineName                     string    `json:"quarantine_name"`
 	QuarantineSHA256                   string    `json:"quarantine_sha256"`
 	OriginalPathAbsentVerified         bool      `json:"original_path_absent_verified"`
+	FinalArtifactAbsentVerified        bool      `json:"final_artifact_absent_verified"`
+	ActivePartFilesAbsentVerified      bool      `json:"active_part_files_absent_verified"`
 	QuarantineHashVerified             bool      `json:"quarantine_hash_verified"`
 	ReplayPermitted                    bool      `json:"replay_permitted"`
 	AuthorityRestorable                bool      `json:"authority_restorable"`
@@ -100,6 +109,7 @@ func Bind(in Input) (Evidence, error) {
 	in.Note = strings.TrimSpace(in.Note)
 	in.RuntimeID = strings.TrimSpace(in.RuntimeID)
 	in.OrphanName = strings.TrimSpace(in.OrphanName)
+	in.FinalArtifactName = strings.TrimSpace(in.FinalArtifactName)
 	in.QuarantineName = strings.TrimSpace(in.QuarantineName)
 	in.QuarantineSHA256 = strings.ToLower(strings.TrimSpace(in.QuarantineSHA256))
 
@@ -130,12 +140,18 @@ func Bind(in Input) (Evidence, error) {
 		return Evidence{}, fmt.Errorf("resolution timestamp is empty")
 	case in.OrphanName == "" || len(in.OrphanName) > MaxNameLength:
 		return Evidence{}, fmt.Errorf("orphan name is invalid")
+	case in.FinalArtifactName == "" || len(in.FinalArtifactName) > MaxNameLength:
+		return Evidence{}, fmt.Errorf("final artifact name is invalid")
 	case in.QuarantineName == "" || len(in.QuarantineName) > MaxNameLength:
 		return Evidence{}, fmt.Errorf("quarantine name is invalid")
 	case !validSHA256(in.QuarantineSHA256):
 		return Evidence{}, fmt.Errorf("quarantine sha256 is invalid")
 	case !in.OriginalPathAbsentVerified:
 		return Evidence{}, fmt.Errorf("original active-staging path absence was not verified")
+	case !in.FinalArtifactAbsentVerified:
+		return Evidence{}, fmt.Errorf("final artifact absence was not verified")
+	case !in.ActivePartFilesAbsentVerified:
+		return Evidence{}, fmt.Errorf("active part-file absence was not verified")
 	case !in.QuarantineHashVerified:
 		return Evidence{}, fmt.Errorf("quarantine hash was not verified")
 	}
@@ -156,9 +172,12 @@ func Bind(in Input) (Evidence, error) {
 		ArtifactStateRemainsUnknown:        true,
 		AmbiguousBytesDisposition:          DispositionQuarantined,
 		OrphanName:                         in.OrphanName,
+		FinalArtifactName:                  in.FinalArtifactName,
 		QuarantineName:                     in.QuarantineName,
 		QuarantineSHA256:                   in.QuarantineSHA256,
 		OriginalPathAbsentVerified:         true,
+		FinalArtifactAbsentVerified:        true,
+		ActivePartFilesAbsentVerified:      true,
 		QuarantineHashVerified:             true,
 		ReplayPermitted:                    false,
 		AuthorityRestorable:                false,
@@ -186,7 +205,8 @@ func Verify(e Evidence) error {
 	if e.AmbiguousBytesDisposition != DispositionQuarantined {
 		return fmt.Errorf("resolution ambiguous bytes disposition %q is unsupported", e.AmbiguousBytesDisposition)
 	}
-	if !e.OriginalPathAbsentVerified || !e.QuarantineHashVerified {
+	if !e.OriginalPathAbsentVerified || !e.FinalArtifactAbsentVerified ||
+		!e.ActivePartFilesAbsentVerified || !e.QuarantineHashVerified {
 		return fmt.Errorf("resolution lacks verified quarantine disposition")
 	}
 	if e.ReplayPermitted || e.AuthorityRestorable || e.ResolutionGrantsExecutionAuthority {
@@ -204,12 +224,14 @@ func Verify(e Evidence) error {
 		strings.TrimSpace(e.Note) == "" ||
 		strings.TrimSpace(e.RuntimeID) == "" ||
 		strings.TrimSpace(e.OrphanName) == "" ||
+		strings.TrimSpace(e.FinalArtifactName) == "" ||
 		strings.TrimSpace(e.QuarantineName) == "" ||
 		e.ResolvedAt.IsZero() {
 		return fmt.Errorf("resolution evidence is incomplete")
 	}
 	if len(e.ResolvedBy) > MaxActorLength || len(e.Note) > MaxNoteLength ||
-		len(e.OrphanName) > MaxNameLength || len(e.QuarantineName) > MaxNameLength {
+		len(e.OrphanName) > MaxNameLength || len(e.FinalArtifactName) > MaxNameLength ||
+		len(e.QuarantineName) > MaxNameLength {
 		return fmt.Errorf("resolution evidence exceeds bounded text limits")
 	}
 	if !validSHA256(e.QuarantineSHA256) {
@@ -261,9 +283,12 @@ func Digest(e Evidence) (string, error) {
 		ArtifactStateRemainsUnknown:        e.ArtifactStateRemainsUnknown,
 		AmbiguousBytesDisposition:          e.AmbiguousBytesDisposition,
 		OrphanName:                         e.OrphanName,
+		FinalArtifactName:                  e.FinalArtifactName,
 		QuarantineName:                     e.QuarantineName,
 		QuarantineSHA256:                   strings.ToLower(e.QuarantineSHA256),
 		OriginalPathAbsentVerified:         e.OriginalPathAbsentVerified,
+		FinalArtifactAbsentVerified:        e.FinalArtifactAbsentVerified,
+		ActivePartFilesAbsentVerified:      e.ActivePartFilesAbsentVerified,
 		QuarantineHashVerified:             e.QuarantineHashVerified,
 		ReplayPermitted:                    e.ReplayPermitted,
 		AuthorityRestorable:                e.AuthorityRestorable,
