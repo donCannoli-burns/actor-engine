@@ -17,24 +17,24 @@ const (
 )
 
 type Evidence struct {
-	Version                           string    `json:"version"`
-	Digest                            string    `json:"digest"`
-	InterruptionDigest                string    `json:"interruption_digest"`
-	ProposalID                        string    `json:"proposal_id"`
-	Operation                         string    `json:"operation"`
-	ExecutionDigest                   string    `json:"execution_digest"`
-	StartedEventHash                  string    `json:"started_event_hash"`
-	Decision                          string    `json:"decision"`
-	ResolvedBy                        string    `json:"resolved_by"`
-	Note                              string    `json:"note"`
-	RuntimeID                         string    `json:"runtime_id"`
-	ResolvedAt                        time.Time `json:"resolved_at"`
-	OutcomeRemainsUnknown             bool      `json:"outcome_remains_unknown"`
-	ArtifactStateRemainsUnknown       bool      `json:"artifact_state_remains_unknown"`
-	ReplayPermitted                   bool      `json:"replay_permitted"`
-	AuthorityRestorable               bool      `json:"authority_restorable"`
-	ResolutionGrantsExecutionAuthority bool     `json:"resolution_grants_execution_authority"`
-	InterruptionBlockCleared          bool      `json:"interruption_block_cleared"`
+	Version                            string    `json:"version"`
+	Digest                             string    `json:"digest"`
+	InterruptionDigest                 string    `json:"interruption_digest"`
+	ProposalID                         string    `json:"proposal_id"`
+	Operation                          string    `json:"operation"`
+	ExecutionDigest                    string    `json:"execution_digest"`
+	StartedEventHash                   string    `json:"started_event_hash"`
+	Decision                           string    `json:"decision"`
+	ResolvedBy                         string    `json:"resolved_by"`
+	Note                               string    `json:"note"`
+	RuntimeID                          string    `json:"runtime_id"`
+	ResolvedAt                         time.Time `json:"resolved_at"`
+	OutcomeRemainsUnknown              bool      `json:"outcome_remains_unknown"`
+	ArtifactStateRemainsUnknown        bool      `json:"artifact_state_remains_unknown"`
+	ReplayPermitted                    bool      `json:"replay_permitted"`
+	AuthorityRestorable                bool      `json:"authority_restorable"`
+	ResolutionGrantsExecutionAuthority bool      `json:"resolution_grants_execution_authority"`
+	InterruptionBlockCleared           bool      `json:"interruption_block_cleared"`
 }
 
 type Input struct {
@@ -51,23 +51,23 @@ type Input struct {
 }
 
 type digestPayload struct {
-	Version                           string    `json:"version"`
-	InterruptionDigest                string    `json:"interruption_digest"`
-	ProposalID                        string    `json:"proposal_id"`
-	Operation                         string    `json:"operation"`
-	ExecutionDigest                   string    `json:"execution_digest"`
-	StartedEventHash                  string    `json:"started_event_hash"`
-	Decision                          string    `json:"decision"`
-	ResolvedBy                        string    `json:"resolved_by"`
-	Note                              string    `json:"note"`
-	RuntimeID                         string    `json:"runtime_id"`
-	ResolvedAt                        time.Time `json:"resolved_at"`
-	OutcomeRemainsUnknown             bool      `json:"outcome_remains_unknown"`
-	ArtifactStateRemainsUnknown       bool      `json:"artifact_state_remains_unknown"`
-	ReplayPermitted                   bool      `json:"replay_permitted"`
-	AuthorityRestorable               bool      `json:"authority_restorable"`
-	ResolutionGrantsExecutionAuthority bool     `json:"resolution_grants_execution_authority"`
-	InterruptionBlockCleared          bool      `json:"interruption_block_cleared"`
+	Version                            string    `json:"version"`
+	InterruptionDigest                 string    `json:"interruption_digest"`
+	ProposalID                         string    `json:"proposal_id"`
+	Operation                          string    `json:"operation"`
+	ExecutionDigest                    string    `json:"execution_digest"`
+	StartedEventHash                   string    `json:"started_event_hash"`
+	Decision                           string    `json:"decision"`
+	ResolvedBy                         string    `json:"resolved_by"`
+	Note                               string    `json:"note"`
+	RuntimeID                          string    `json:"runtime_id"`
+	ResolvedAt                         time.Time `json:"resolved_at"`
+	OutcomeRemainsUnknown              bool      `json:"outcome_remains_unknown"`
+	ArtifactStateRemainsUnknown        bool      `json:"artifact_state_remains_unknown"`
+	ReplayPermitted                    bool      `json:"replay_permitted"`
+	AuthorityRestorable                bool      `json:"authority_restorable"`
+	ResolutionGrantsExecutionAuthority bool      `json:"resolution_grants_execution_authority"`
+	InterruptionBlockCleared           bool      `json:"interruption_block_cleared"`
 }
 
 func Bind(in Input) (Evidence, error) {
