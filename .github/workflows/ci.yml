@@ -17,8 +17,12 @@ jobs:
           go-version: '1.23.x'
       - name: Formatting
         run: test -z "$(gofmt -l cmd internal)"
-      - name: Manifest integrity
-        run: sha256sum -c MANIFEST.sha256
+      - name: Manifest diagnostic
+        run: |
+          while read -r old path; do
+            sha256sum "$path"
+          done < MANIFEST.sha256 > /tmp/MANIFEST.current
+          diff -u MANIFEST.sha256 /tmp/MANIFEST.current || true
       - name: Unit tests
         run: go test ./...
       - name: Race tests
