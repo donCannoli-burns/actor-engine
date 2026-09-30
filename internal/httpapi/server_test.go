@@ -877,7 +877,6 @@ func TestRecoveryEndpointReportsInterruptedExecutionAndBlocksPreflight(t *testin
 	}
 }
 
-
 func TestHumanRecoveryResolutionClearsOnlyInterruptionBlock(t *testing.T) {
 	t.Parallel()
 	ledger, err := audit.Open(filepath.Join(t.TempDir(), "audit.jsonl"))
