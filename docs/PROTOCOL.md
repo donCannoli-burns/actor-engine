@@ -129,7 +129,7 @@ The full reconciliation object is returned in the receipt and stored on the term
 Reconciliation evidence is historical evidence only. It cannot authorize, replay, or restore an operation.
 
 
-## v0.9 development crash/restart recovery report
+## Verified v0.9.0 crash/restart recovery report
 
 `GET /v1/recovery` is read-only. It scans the verified audit ledger for `execution.started` records whose `execution_digest` has no matching `execution.succeeded` or `execution.failed` record.
 
