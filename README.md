@@ -362,6 +362,7 @@ resolution_grants_execution_authority = false
 The only supported decision is `acknowledge_unknown_no_replay`. There is no mark-success, mark-failure, retry, replay, cleanup, install, or restart decision.
 
 Design: [`docs/RESOLUTION.md`](docs/RESOLUTION.md)
+Acceptance harness: [`tests/live/v0.10-resolution/human-recovery-resolution-test.sh`](tests/live/v0.10-resolution/human-recovery-resolution-test.sh)
 
 ## What this prototype does
 
