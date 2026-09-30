@@ -136,3 +136,16 @@ Reconciliation evidence is historical evidence only. It cannot authorize, replay
 Each unresolved start becomes deterministic `kol-actor/interruption-v1` evidence bound to the original proposal, operation, admission/confirmation/execution digests, runtime/observation identity, audit sequence, timestamp, and hash.
 
 The report deliberately states that outcome and artifact state are unknown. It grants no replay or restoration authority and performs no cleanup or resolution.
+
+
+## v0.10 development human recovery resolution
+
+`POST /v1/recovery/<interruption_digest>/resolve` accepts one explicit human decision: `acknowledge_unknown_no_replay`.
+
+The request must repeat the exact interruption digest from the path and provide a bounded human identifier plus a non-empty bounded note. A successful request creates `kol-actor/resolution-v1` evidence and durably appends `recovery.resolved`.
+
+The resolution object binds the interruption digest, proposal/operation/execution identity, original `execution.started` event hash, human identity, note, current runtime, and resolution timestamp.
+
+Resolution keeps `outcome_remains_unknown=true`, `artifact_state_remains_unknown=true`, `replay_permitted=false`, `authority_restorable=false`, and `resolution_grants_execution_authority=false`.
+
+A valid durable resolution removes only that interruption from the preflight-blocking set. The old proposal is never reconstructed.
