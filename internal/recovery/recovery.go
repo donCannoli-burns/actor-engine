@@ -50,7 +50,7 @@ type Interruption struct {
 }
 
 type ResolvedInterruption struct {
-	Interruption Interruption       `json:"interruption"`
+	Interruption Interruption        `json:"interruption"`
 	Resolution   resolution.Evidence `json:"resolution"`
 }
 
